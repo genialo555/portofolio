@@ -1,0 +1,161 @@
+# Fichiers Python compilés, cache et optimisation
+*.py[cod]
+__pycache__/
+*.so
+
+# Fichiers de debugs Cython
+cython_debug/
+
+# Environnements virtuels
+venv/
+ENV/
+.venv/
+.env
+
+# Distribution et packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+
+# Logs et fichiers d'installateurs
+pip-log.txt
+pip-delete-this-directory.txt
+*.log
+
+# Tests unitaires et rapports de couverture
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# PyBuilder
+target/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+*.ipynb
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Fichiers et répertoires générés par IDE et éditeurs
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+*.kdev4
+
+# Node modules (au cas où ton projet en aurait besoin)
+node_modules/
+
+# Fichiers générés par le système d'exploitation
+.DS_Store*
+Thumbs.db
+
+# Next.js
+.next/
+out/
+
+# Nest.js
+dist/
+node_modules/
+
+# Machine Learning specific
+## Modèles et checkpoints
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.onnx
+*.mlmodel
+*.joblib
+*.save
+checkpoints/
+saved_models/
+pretrained_models/
+
+## Données et datasets
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.parquet
+*.feather
+*.arrow
+*.dat
+*.npy
+*.npz
+data/
+datasets/
+raw_data/
+processed_data/
+
+## TensorBoard
+tensorboard/
+runs/
+logs/
+tb_logs/
+events.out.tfevents.*
+
+## MLflow
+mlruns/
+mlartifacts/
+outputs/
+
+## Weights & Biases
+wandb/
+
+## DVC (Data Version Control)
+.dvc/
+*.dvc
+
+## Optimisation et hyperparamètres
+*.tune
+ray_results/
+optuna.db
+
+## Fichiers temporaires et caches spécifiques ML
+.pytest_cache/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.jupyter/
+.local/
+
+## Environnements conda
+.conda/
+env/
+*conda-env*/
+
+## Autres fichiers volumineux
+*.zip
+*.tar.gz
+*.tar
+*.rar
+*.7zgit init
+git add .
+git commit -m "Initial commit"
