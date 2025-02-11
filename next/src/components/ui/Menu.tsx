@@ -18,10 +18,10 @@ export function Menu({ onOpenChange }: MenuProps) {
 
   return (
     <>
-      {/* Menu Button avec animation unique */}
+      {/* Menu Button */}
       <button
         onClick={() => toggleMenu(!isOpen)}
-        className="fixed top-8 right-8 z-[2000] w-12 h-12 flex items-center justify-center group"
+        className="fixed top-8 right-8 z-[9999] w-12 h-12 flex items-center justify-center group"
         aria-label="Toggle menu"
       >
         <div className="relative w-8 h-8">
@@ -52,56 +52,57 @@ export function Menu({ onOpenChange }: MenuProps) {
       {/* Menu Panel */}
       <div
         className={cn(
-          "fixed inset-0 bg-background/5 backdrop-blur-[1px] transition-all duration-500",
-          "flex items-center justify-center z-[1900]",
+          "fixed inset-0 bg-white/10 backdrop-blur-[2px] transition-all duration-500",
+          "flex items-center justify-center z-[9990]",
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
       >
-        <nav className="relative z-[1910] w-full max-w-4xl px-8">
-          <div className="flex flex-col gap-6">
+        <nav className="relative w-full max-w-4xl px-8 py-12 z-[9991]">
+          <div className="flex flex-col gap-6 relative z-[9992]">
             <Link 
               href="/"
-              className="group flex items-baseline gap-4 text-foreground hover:text-primary transition-colors"
+              className="group flex items-baseline gap-4 text-black hover:text-primary transition-all duration-200 hover:scale-105"
               onClick={() => toggleMenu(false)}
             >
-              <span className="text-sm font-mono opacity-50">01</span>
+              <span className="text-sm font-mono opacity-50 group-hover:opacity-100">01</span>
               <span className="text-5xl font-light tracking-wide">ACCUEIL</span>
             </Link>
             
             <Link 
               href="/projects"
-              className="group flex items-baseline gap-4 text-foreground hover:text-primary transition-colors"
+              className="group flex items-baseline gap-4 text-black hover:text-primary transition-all duration-200 hover:scale-105"
               onClick={() => toggleMenu(false)}
             >
-              <span className="text-sm font-mono opacity-50">02</span>
+              <span className="text-sm font-mono opacity-50 group-hover:opacity-100">02</span>
               <span className="text-5xl font-light tracking-wide">PROJETS</span>
             </Link>
             
             <Link 
               href="/about"
-              className="group flex items-baseline gap-4 text-foreground hover:text-primary transition-colors"
+              className="group flex items-baseline gap-4 text-black hover:text-primary transition-all duration-200 hover:scale-105"
               onClick={() => toggleMenu(false)}
             >
-              <span className="text-sm font-mono opacity-50">03</span>
+              <span className="text-sm font-mono opacity-50 group-hover:opacity-100">03</span>
               <span className="text-5xl font-light tracking-wide">À PROPOS</span>
             </Link>
             
             <Link 
               href="/contact"
-              className="group flex items-baseline gap-4 text-foreground hover:text-primary transition-colors"
+              className="group flex items-baseline gap-4 text-black hover:text-primary transition-all duration-200 hover:scale-105"
               onClick={() => toggleMenu(false)}
             >
-              <span className="text-sm font-mono opacity-50">04</span>
+              <span className="text-sm font-mono opacity-50 group-hover:opacity-100">04</span>
               <span className="text-5xl font-light tracking-wide">CONTACT</span>
             </Link>
           </div>
 
-          <div className="mt-12 flex gap-6">
+          <div className="mt-12 flex justify-center gap-8 relative z-[9992]">
             <a 
               href="https://instagram.com" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-sm text-foreground hover:text-primary transition-colors"
+              className="text-black/80 hover:text-primary transition-all duration-200 hover:scale-105"
+              onClick={(e) => e.stopPropagation()}
             >
               ↗ Instagram
             </a>
@@ -109,7 +110,8 @@ export function Menu({ onOpenChange }: MenuProps) {
               href="https://behance.com" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-sm text-foreground hover:text-primary transition-colors"
+              className="text-black/80 hover:text-primary transition-all duration-200 hover:scale-105"
+              onClick={(e) => e.stopPropagation()}
             >
               ↗ Behance
             </a>
@@ -118,4 +120,4 @@ export function Menu({ onOpenChange }: MenuProps) {
       </div>
     </>
   )
-} 
+}

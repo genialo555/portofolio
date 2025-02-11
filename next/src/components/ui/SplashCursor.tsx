@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 
 function SplashCursor({
   // Add whatever props you like for customization
