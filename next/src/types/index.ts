@@ -9,4 +9,5 @@ export interface Card {
   features: string[];
   className?: string;
   content?: React.ReactNode;
+  githubUrl?: string;
 }

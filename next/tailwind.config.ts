@@ -132,7 +132,24 @@ const config: Config = {
   		clipPath: {
   			'left-half': 'polygon(0 0, 50% 0, 50% 100%, 0 100%)',
   			'right-half': 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)',
-  		}
+  		},
+  		rotate: {
+  			'y-90': 'rotateY(90deg)',
+  			'-y-90': 'rotateY(-90deg)',
+  		},
+  		transformStyle: {
+  			'3d': 'preserve-3d',
+  		},
+  		perspective: {
+  			'1000': '1000px',
+  		},
+  		backfaceVisibility: {
+  			'hidden': 'hidden',
+  		},
+  		transformOrigin: {
+  			'right': 'right',
+  			'left': 'left',
+  		},
   	}
   },
   plugins: [require("tailwindcss-animate")],

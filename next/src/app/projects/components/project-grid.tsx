@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { Card } from "@/types";
+import { WavesBackground } from "@/components/ui/waves-background";
+import { LoadingState } from "@/app/projects/demos/route-modal/components/loading-state";
+import { useRouter } from "next/navigation";
 
 // Separate the image component for better performance
 const ImageComponent = ({ card }: { card: Card }) => {
@@ -29,52 +32,117 @@ const ImageComponent = ({ card }: { card: Card }) => {
 };
 
 // Separate the selected card component
-const SelectedCard = ({ selected }: { selected: Card }) => {
+const SelectedCard = ({ project, onClose }: { project: Card; onClose: () => void }) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [showModal, setShowModal] = useState(true);
+  const router = useRouter();
+
+  const handleLoadingComplete = () => {
+    setIsLoading(false);
+    router.push('/projects/route-planner');
+  };
+
+  const handleLiveDemo = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (project.title === "Planificateur d'itinéraire") {
+      router.push('/projects/demos/route-modal');
+    } else if (project.demoUrl) {
+      window.open(project.demoUrl, '_blank');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <AnimatePresence>
+        <LoadingState onFinish={handleLoadingComplete} />
+      </AnimatePresence>
+    );
+  }
+
+  if (!showModal) return null;
+
   return (
-    <div className="absolute inset-0 p-8 flex flex-col items-center">
-      <div className="relative w-full h-1/2 mb-4">
-        <Image
-          src={selected.thumbnail}
-          alt={selected.title}
-          fill
-          className="object-cover rounded-xl"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          quality={75}
-        />
-      </div>
-      <h2 className="text-3xl font-bold mb-4">{selected.title}</h2>
-      <p className="text-gray-600 mb-4 text-center">{selected.description}</p>
-      <div className="flex flex-wrap gap-2 justify-center mb-4">
-        {selected.tags.map((tag) => (
-          <span
-            key={tag}
-            className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-600"
-          >
-            {tag}
-          </span>
-        ))}
-      </div>
-      <div className="space-y-2">
-        {selected.features.map((feature) => (
-          <div key={feature} className="flex items-center gap-2">
-            <svg
-              className="w-5 h-5 text-green-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-            <span>{feature}</span>
+    <motion.div
+      layoutId={`card-${project.id}`}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      />
+      <motion.div
+        className="relative w-full max-w-2xl rounded-2xl bg-white/80 backdrop-blur-sm p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+          <Image
+            src={project.thumbnail}
+            alt={project.title}
+            fill
+            className="object-cover"
+          />
+        </div>
+        <div className="mt-4">
+          <h2 className="text-2xl font-semibold text-gray-900">{project.title}</h2>
+          <p className="mt-2 text-gray-600">{project.description}</p>
+          
+          <div className="mt-6 flex gap-4">
+            {project.title === "Planificateur d'itinéraire" ? (
+              <button
+                onClick={handleLiveDemo}
+                className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900"
+              >
+                Live Demo
+                <span className="text-xs">↗</span>
+              </button>
+            ) : project.demoUrl && (
+              <a
+                href={project.demoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900"
+              >
+                Live Demo
+                <span className="text-xs">↗</span>
+              </a>
+            )}
+            {project.githubUrl && (
+              <a
+                href={project.githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50"
+              >
+                View Code
+                <span className="text-xs">↗</span>
+              </a>
+            )}
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100"
+        >
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -93,14 +161,18 @@ export function LayoutGrid({ cards }: { cards: Card[] }) {
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div className="w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <AnimatePresence>
           {cards.map((card, i) => (
             <motion.div
               key={card.id}
               layoutId={`card-${card.id}`}
-              className={cn(card.className, "relative")}
+              className={cn(
+                "relative",
+                "md:col-span-1",
+                card.className?.includes("md:col-span-2") && "md:col-span-2",
+              )}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
@@ -113,35 +185,20 @@ export function LayoutGrid({ cards }: { cards: Card[] }) {
               <motion.div
                 onClick={() => handleClick(card)}
                 className={cn(
-                  "relative overflow-hidden w-full h-full rounded-xl shadow-lg cursor-pointer",
-                  selected?.id === card.id
-                    ? "fixed inset-0 h-2/3 w-full md:w-2/3 m-auto z-50 flex justify-center items-center flex-wrap flex-col"
-                    : lastSelected?.id === card.id
-                    ? "z-40 bg-white"
-                    : "bg-white hover:shadow-xl transition-shadow duration-200"
+                  "relative overflow-hidden w-full h-[300px] md:h-[400px] rounded-xl shadow-lg cursor-pointer",
+                  "bg-white hover:shadow-xl transition-shadow duration-200"
                 )}
                 layoutId={`card-content-${card.id}`}
                 transition={{ duration: 0.3 }}
               >
-                {selected?.id === card.id ? (
-                  <SelectedCard selected={selected} />
-                ) : (
-                  <ImageComponent card={card} />
-                )}
+                <ImageComponent card={card} />
               </motion.div>
             </motion.div>
           ))}
         </AnimatePresence>
         <AnimatePresence>
-          {selected?.id && (
-            <motion.div
-              onClick={handleOutsideClick}
-              className="fixed inset-0 bg-black/50 z-40"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            />
+          {selected && (
+            <SelectedCard project={selected} onClose={handleOutsideClick} />
           )}
         </AnimatePresence>
       </div>

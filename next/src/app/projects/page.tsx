@@ -16,13 +16,11 @@ const SparklesCore = dynamic(
 
 // Loading component for the grid
 const GridSkeleton = () => (
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-pulse">
+  <div className="grid grid-cols-1 gap-8 animate-pulse">
     {[...Array(6)].map((_, i) => (
       <div
         key={i}
-        className={`relative bg-gray-200 rounded-xl ${
-          i % 3 === 0 ? "md:col-span-2" : "md:col-span-1"
-        } h-[400px]`}
+        className="relative bg-gray-200 rounded-xl h-[400px]"
       />
     ))}
   </div>
@@ -168,19 +166,21 @@ export default function ProjectsPage() {
 
       {/* Content */}
       <div className="relative z-10 min-h-screen">
-        <div className="fixed left-0 top-0 bottom-0 w-[600px] p-16 flex flex-col justify-center">
-          <div className="space-y-8">
-            <h1 className="text-7xl font-bold tracking-tight text-gray-900">
+        {/* Titre et description */}
+        <div className="md:fixed relative left-0 top-0 w-full md:w-[600px] p-8 md:p-16 md:h-screen flex flex-col md:justify-center bg-white/80 backdrop-blur-sm">
+          <div className="space-y-6 md:space-y-8">
+            <h1 className="text-4xl md:text-7xl font-bold tracking-tight text-gray-900">
               Mes Projets
             </h1>
-            <p className="text-3xl text-gray-600 leading-relaxed">
+            <p className="text-lg md:text-3xl text-gray-600 leading-relaxed">
               Une sélection de mes projets récents, mettant en avant mes compétences en développement full-stack, ML et IA.
             </p>
           </div>
         </div>
 
-        <div className="ml-[600px] flex justify-center items-start min-h-screen pt-[300px]">
-          <div className="max-w-[1200px] w-full px-4">
+        {/* Grid des projets */}
+        <div className="w-full md:ml-[600px] px-4 md:px-8 py-8 md:py-[300px]">
+          <div className="max-w-[1200px] mx-auto">
             <Suspense fallback={<GridSkeleton />}>
               <LayoutGrid cards={cards} />
             </Suspense>

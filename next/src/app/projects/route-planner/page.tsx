@@ -1,11 +1,15 @@
 "use client"
 
-import { RouteModal } from "../demos/route-modal/components/route-modal"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 export default function RoutePlannerPage() {
-  return (
-    <div className="min-h-screen bg-background">
-      <RouteModal isOpen={true} onClose={() => window.history.back()} />
-    </div>
-  )
+  const router = useRouter()
+
+  useEffect(() => {
+    // Rediriger vers la page du modal avec le loading state
+    router.replace("/projects/demos/route-modal")
+  }, [router])
+
+  return null
 }

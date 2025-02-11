@@ -1,116 +1,83 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect } from "react";
+import dynamic from "next/dynamic";
 
-function FloatingPaths({ position }: { position: number }) {
-    const paths = Array.from({ length: 36 }, (_, i) => ({
-        id: i,
-        d: `M-${380 - i * 5 * position} -${189 + i * 6}C-${
-            380 - i * 5 * position
-        } -${189 + i * 6} -${312 - i * 5 * position} ${216 - i * 6} ${
-            152 - i * 5 * position
-        } ${343 - i * 6}C${616 - i * 5 * position} ${470 - i * 6} ${
-            684 - i * 5 * position
-        } ${875 - i * 6} ${684 - i * 5 * position} ${875 - i * 6}`,
-        color: `rgba(15,23,42,${0.1 + i * 0.03})`,
-        width: 0.5 + i * 0.03,
-    }));
-
-    return (
-        <div className="absolute inset-0 pointer-events-none">
-            <svg
-                className="w-full h-full text-slate-950 dark:text-white"
-                viewBox="0 0 696 316"
-                fill="none"
-            >
-                <title>Background Paths</title>
-                {paths.map((path) => (
-                    <motion.path
-                        key={path.id}
-                        d={path.d}
-                        stroke="currentColor"
-                        strokeWidth={path.width}
-                        strokeOpacity={0.1 + path.id * 0.02}
-                        initial={{ pathLength: 0.3, opacity: 0.4 }}
-                        animate={{
-                            pathLength: 1,
-                            opacity: [0.2, 0.4, 0.2],
-                            pathOffset: [0, 1, 0],
-                        }}
-                        transition={{
-                            duration: 8.5,
-                            repeat: Number.POSITIVE_INFINITY,
-                            ease: [0.4, 0, 0.2, 1],
-                            opacity: {
-                                duration: 4,
-                                repeat: Number.POSITIVE_INFINITY,
-                                ease: "easeInOut"
-                            }
-                        }}
-                    />
-                ))}
-            </svg>
-        </div>
-    );
-}
+const FlickeringGrid = dynamic(
+  () => import("@/components/ui/flickering-grid").then((mod) => mod.FlickeringGrid),
+  { ssr: false }
+);
 
 interface LoadingStateProps {
     onFinish: () => void;
 }
 
 export function LoadingState({ onFinish }: LoadingStateProps) {
+    useEffect(() => {
+        const timer = setTimeout(onFinish, 6000);
+        return () => clearTimeout(timer);
+    }, [onFinish]);
+
     return (
         <motion.div 
-            className="fixed inset-0 z-50 bg-background flex items-center justify-center"
+            className="fixed inset-0 z-[2000] flex items-center justify-center overflow-hidden"
             initial={{ opacity: 0 }}
             animate={{ 
                 opacity: 1,
                 transition: {
-                    duration: 1,
+                    duration: 0.5,
                     ease: [0.4, 0, 0.2, 1]
                 }
             }}
             exit={{ 
                 opacity: 0,
                 transition: { 
-                    duration: 1.6, 
+                    duration: 0.5, 
                     ease: [0.4, 0, 0.2, 1] 
                 }
             }}
         >
-            <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden">
-                <div className="absolute inset-0">
-                    <FloatingPaths position={1} />
-                    <FloatingPaths position={-1} />
-                </div>
+            {/* Background avec la grille */}
+            <motion.div 
+                className="absolute inset-0 bg-background/95"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+            >
+                <FlickeringGrid 
+                    color="rgb(0, 0, 0)"
+                    maxOpacity={0.2}
+                    flickerChance={0.2}
+                    squareSize={6}
+                    gridGap={8}
+                />
+            </motion.div>
 
-                <div className="relative z-10 text-center">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ 
-                            delay: 0.3, 
-                            duration: 1.2, 
-                            ease: [0.4, 0, 0.2, 1] 
-                        }}
-                        className="text-2xl font-semibold mb-4"
-                    >
-                        Préparation de votre itinéraire
-                    </motion.div>
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ 
-                            delay: 0.6, 
-                            duration: 1.2, 
-                            ease: [0.4, 0, 0.2, 1] 
-                        }}
-                        className="text-muted-foreground"
-                    >
-                        Chargement des données en cours...
-                    </motion.div>
-                </div>
-            </div>
+            {/* Contenu */}
+            <motion.div 
+                className="relative z-[2001] text-center space-y-4 px-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.8 }}
+            >
+                <motion.h2
+                    className="text-2xl font-semibold text-foreground"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5, duration: 0.8 }}
+                >
+                    Préparation de votre itinéraire
+                </motion.h2>
+                <motion.p
+                    className="text-muted-foreground"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.7, duration: 0.8 }}
+                >
+                    Veuillez patienter pendant que nous préparons votre trajet...
+                </motion.p>
+            </motion.div>
         </motion.div>
     );
-} 
+}

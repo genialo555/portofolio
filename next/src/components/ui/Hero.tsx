@@ -7,6 +7,9 @@ import dynamic from "next/dynamic";
 
 const Menu = dynamic(() => import("./Menu").then((mod) => mod.Menu), {
   ssr: false,
+  loading: () => (
+    <div className="fixed top-8 right-8 z-[9999] w-[65px] h-[35px] rounded-md bg-white/80 animate-pulse" />
+  )
 });
 
 const WavesBackground = dynamic(
@@ -65,8 +68,8 @@ export function Hero() {
 
   return (
     <div className="relative w-full h-screen flex items-center justify-center overflow-hidden">
-      {/* Menu */}
-      <Menu onOpenChange={setIsMenuOpen} />
+      {/* Menu avec son bouton */}
+      <Menu onOpenChange={setIsMenuOpen} isOpen={isMenuOpen} />
 
       {/* Container for both animations */}
       <div className="absolute inset-0 w-full h-full">
