@@ -31,7 +31,7 @@ export function Menu({ onOpenChange }: MenuProps) {
     if (isAnimating) {
       const timer = setTimeout(() => {
         setIsAnimating(false)
-      }, 200) // Réduit de 300ms à 200ms
+      }, 200)
       return () => clearTimeout(timer)
     }
   }, [isAnimating])
