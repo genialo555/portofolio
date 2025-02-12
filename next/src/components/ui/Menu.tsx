@@ -39,8 +39,9 @@ export const Menu = ({ onOpenChange, isOpen }: MenuProps) => {
   const menuLinks = [
     { href: "/", label: "ACCUEIL", number: "01" },
     { href: "/projects", label: "PROJETS", number: "02" },
-    { href: "/about", label: "À PROPOS", number: "03" },
-    { href: "/contact", label: "CONTACT", number: "04" }
+    { href: "/blog", label: "BLOG", number: "03" },
+    { href: "/about", label: "À PROPOS", number: "04" },
+    { href: "/contact", label: "CONTACT", number: "05" }
   ]
 
   const socialLinks = [
