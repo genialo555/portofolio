@@ -4,12 +4,18 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { Dispatch, SetStateAction } from "react";
+
+interface MenuProps {
+  onOpenChange: Dispatch<SetStateAction<boolean>>;
+  isOpen: boolean;
+}
 
 const Menu = dynamic(() => import("./Menu").then((mod) => mod.Menu), {
   ssr: false,
   loading: () => (
-    <div className="fixed top-8 right-8 z-[9999] w-[65px] h-[35px] rounded-md bg-white/80 animate-pulse" />
-  )
+    <div className="w-[65px] h-[25px] bg-transparent border border-black rounded-md" />
+  ),
 });
 
 const WavesBackground = dynamic(
@@ -36,12 +42,15 @@ const MainContent = ({ isMenuOpen }: { isMenuOpen: boolean }) => {
       )}
     >
       <div className="space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">
-          Hey, je suis <span className="text-primary">Jeremie Nunez</span>
+        <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+          HEY, JE SUIS <span className="text-primary">JEREMIE</span>
         </h1>
-        <p className="text-xl text-muted-foreground">
-          Je suis développeur Full Stack, passionné par le développement web &
-          mobile
+        <h2 className="text-2xl md:text-4xl font-light tracking-wide text-muted-foreground">
+          MAIS VOUS POUVEZ M'APPELER <span className="font-medium">JEREM</span>
+        </h2>
+        <p className="text-lg md:text-xl text-muted-foreground mt-4">
+          Je suis développeur Full Stack, passionné par le<br />
+          développement web & machine learning
         </p>
       </div>
 

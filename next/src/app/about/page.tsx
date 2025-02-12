@@ -50,26 +50,31 @@ export default function AboutPage() {
 
         {/* Contenu à droite */}
         <div className="flex-1 flex items-center justify-center p-16">
-          <div className="max-w-2xl space-y-8 bg-white/80 backdrop-blur-sm rounded-2xl p-8">
-            <h1 className="text-4xl font-bold tracking-tight">À propos</h1>
-            <div className="prose prose-gray dark:prose-invert">
-              <p className="text-xl text-muted-foreground">
-                Développeur passionné avec une expertise en développement web full-stack et une affinité particulière pour les interfaces utilisateur innovantes.
+          <div className="max-w-2xl space-y-6 bg-white/80 backdrop-blur-sm rounded-2xl p-8">
+            <div className="space-y-6">
+              <p className="text-xl text-muted-foreground leading-relaxed">
+                Après dix ans en tant que chef cuisinier, j'ai troqué les fourneaux contre le code pour me consacrer pleinement au développement web, à l'automatisation et à l'intelligence artificielle.
               </p>
-              <p>
-                Fort de plusieurs années d'expérience dans le développement d'applications web modernes, je combine créativité et expertise technique pour créer des solutions numériques performantes et esthétiques.
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Passionné par l'innovation et la tech, je conçois des solutions performantes qui optimisent les processus et apportent un impact réel.
               </p>
-              <p>
-                Ma stack technique principale inclut :
+            </div>
+
+            <div className="space-y-6">
+              <p className="text-base text-muted-foreground leading-relaxed">
+                <span className="font-medium">Golddy</span> illustre parfaitement mon expertise en scraping et automatisation. Ce système avancé permet d'extraire et d'analyser des données à grande échelle sur Instagram, avec une approche optimisée pour la gestion de gros volumes d'informations. J'ai travaillé sur la récupération et l'exploitation de données stratégiques en temps réel, en structurant un pipeline de scraping intelligent et scalable.
               </p>
-              <ul>
-                <li>React & Next.js pour le développement frontend</li>
-                <li>Node.js & NestJS pour le backend</li>
-                <li>TypeScript pour un code robuste et maintenable</li>
-                <li>Tailwind CSS pour un design moderne et responsive</li>
-              </ul>
-              <p>
-                Je suis constamment à la recherche de nouveaux défis et d'opportunités d'apprentissage dans le domaine du développement web.
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Je développe également <span className="font-medium">LIA</span>, un assistant IA intégré à EcoTrack, capable d'interagir avec les utilisateurs pour les aider à analyser leur empreinte carbone et optimiser leurs décisions. Basé sur l'API Gemini, LIA agit comme un middle-end intelligent, connectant le frontend et le backend tout en apportant des fonctionnalités avancées comme l'analyse de données, les recommandations automatisées et la gestion sécurisée des interactions utilisateur.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Sur le plan technique, je maîtrise des technologies comme React, Next.js et NestJS, avec une architecture robuste et sécurisée reposant sur PostgreSQL, MongoDB et Docker. Je mets en place des pipelines CI/CD, garantissant un déploiement fluide sur Google Cloud, Vercel et Heroku. Mon approche allie sécurité, scalabilité et optimisation, avec une attention particulière à la gestion des rôles et à la protection des données.
+              </p>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Toujours avide d'explorer de nouvelles perspectives, je me spécialise également en machine learning appliqué avec une maîtrise de TensorFlow, PyTorch et Pandas. J'explore des réseaux neuronaux avancés (LSTM, Transformers) et des techniques d'optimisation pour intégrer l'IA dans des solutions concrètes.
               </p>
             </div>
           </div>

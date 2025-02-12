@@ -4,10 +4,10 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 
 const badges = [
-  { label: "Branding", delay: 0 },
-  { label: "Graphic Design", delay: 0.1 },
-  { label: "Web Application", delay: 0.2 },
-  { label: "UI-UX", delay: 0.3 }
+  { label: "Design Web", delay: 0 },
+  { label: "Full Stack", delay: 0.1 },
+  { label: "Machine Learning", delay: 0.2 },
+  { label: "Automatisation", delay: 0.3 }
 ]
 
 export function ContactForm() {
@@ -34,7 +34,7 @@ export function ContactForm() {
           transition={{ delay: 0.4, duration: 0.5 }}
           className="text-4xl font-semibold"
         >
-          Any questions about Design?
+          Une idée de projet ?
         </motion.h1>
         
         <motion.p 
@@ -43,8 +43,31 @@ export function ContactForm() {
           transition={{ delay: 0.5, duration: 0.5 }}
           className="text-lg text-muted-foreground"
         >
-          Feel free to reach out to me!
+          N'hésitez pas à me contacter !
         </motion.p>
+
+        <motion.a
+          href="https://www.linkedin.com/in/jérémie-nunez"
+          target="_blank"
+          rel="noopener noreferrer"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55, duration: 0.5 }}
+          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+          whileHover={{ scale: 1.05 }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="w-6 h-6"
+          >
+            <path d="M20.5 2h-17A1.5 1.5 0 002 3.5v17A1.5 1.5 0 003.5 22h17a1.5 1.5 0 001.5-1.5v-17A1.5 1.5 0 0020.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 118.3 6.5a1.78 1.78 0 01-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0013 14.19a.66.66 0 000 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 012.7-1.4c1.55 0 3.36.86 3.36 3.66z"></path>
+          </svg>
+          <span className="text-sm font-medium">LinkedIn</span>
+        </motion.a>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -57,14 +80,14 @@ export function ContactForm() {
             className="bg-black text-white hover:bg-black/90 hover:scale-105 transition-all duration-300"
             onClick={() => window.open('https://calendly.com', '_blank')}
           >
-            Book a call
+            Planifier un appel
           </Button>
           
           <Button 
             size="lg" 
             variant="outline" 
             className="border-2 hover:scale-105 transition-all duration-300"
-            onClick={() => window.location.href = 'mailto:contact@example.com'}
+            onClick={() => window.location.href = 'mailto:jeremienunezpro@gmail.com'}
           >
             <motion.svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -88,7 +111,7 @@ export function ContactForm() {
             size="lg" 
             variant="outline" 
             className="border-2 hover:scale-105 transition-all duration-300"
-            onClick={() => window.open('https://wa.me/1234567890', '_blank')}
+            onClick={() => window.open('https://wa.me/33670303478', '_blank')}
           >
             <motion.svg 
               xmlns="http://www.w3.org/2000/svg" 

@@ -1,15 +1,15 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, Dispatch, SetStateAction } from "react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
 interface MenuProps {
-  onOpenChange?: (isOpen: boolean) => void
+  onOpenChange: Dispatch<SetStateAction<boolean>>;
+  isOpen: boolean;
 }
 
-export function Menu({ onOpenChange }: MenuProps) {
-  const [isOpen, setIsOpen] = useState(false)
+export const Menu = ({ onOpenChange, isOpen }: MenuProps) => {
   const [isAnimating, setIsAnimating] = useState(false)
   const [isPreloaded, setIsPreloaded] = useState(false)
 
@@ -22,8 +22,7 @@ export function Menu({ onOpenChange }: MenuProps) {
   const toggleMenu = useCallback((open: boolean) => {
     if (isAnimating) return
     setIsAnimating(true)
-    setIsOpen(open)
-    onOpenChange?.(open)
+    onOpenChange(open)
   }, [onOpenChange, isAnimating])
 
   // Gérer la fin de l'animation
