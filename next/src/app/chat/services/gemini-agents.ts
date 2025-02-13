@@ -91,20 +91,33 @@ export async function getAgentResponse(
   context: string = ""
 ): Promise<string> {
   try {
-    // Vérifier si la clé API est présente
+    // Vérifier si la clé API est présente et bien formatée
     if (!agent.apiKey) {
       console.error(`Clé API manquante pour l'agent ${agent.name}`);
       return "Erreur de configuration : clé API manquante.";
     }
 
-    console.log(`Tentative d'appel à l'API Gemini pour l'agent ${agent.name} avec la clé : ${agent.apiKey.substring(0, 10)}...`);
+    if (!agent.apiKey.startsWith('AI')) {
+      console.error(`Format de clé API invalide pour l'agent ${agent.name}. La clé doit commencer par 'AI'`);
+      return "Erreur de configuration : format de clé API invalide.";
+    }
+
+    console.log(`Configuration de l'agent ${agent.name}:`, {
+      role: agent.role,
+      apiKeyPrefix: agent.apiKey.substring(0, 10),
+      apiKeyLength: agent.apiKey.length
+    });
 
     const genAI = new GoogleGenerativeAI(agent.apiKey);
+    console.log(`Instance GoogleGenerativeAI créée pour ${agent.name}`);
+    
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    console.log(`Modèle gemini-pro obtenu pour ${agent.name}`);
 
     const prompt = generateAgentPrompt(agent, topic, context);
     console.log(`Prompt généré pour ${agent.name}:`, prompt);
 
+    console.log(`Début de l'appel API pour ${agent.name}...`);
     const result = await model.generateContent(prompt);
     console.log(`Réponse reçue de l'API pour ${agent.name}:`, result);
     
@@ -116,13 +129,18 @@ export async function getAgentResponse(
 
     return result.response.text();
   } catch (error: any) {
-    console.error(`Erreur détaillée pour l'agent ${agent.name}:`, error);
+    console.error(`Erreur détaillée pour l'agent ${agent.name}:`, {
+      error: error.toString(),
+      stack: error.stack,
+      message: error.message,
+      name: error.name
+    });
     
     // Personnaliser le message d'erreur
     if (error?.toString().includes("SAFETY")) {
       return "Désolé, je ne peux pas répondre à cette demande car elle a été bloquée par les filtres de sécurité. Veuillez reformuler votre question de manière plus appropriée.";
     } else if (error?.toString().includes("API Key")) {
-      return `Erreur d'authentification avec l'API pour l'agent ${agent.name}. Clé utilisée : ${agent.apiKey.substring(0, 10)}...`;
+      return `Erreur d'authentification avec l'API pour l'agent ${agent.name}. Détails : ${error.message}`;
     } else {
       return `Une erreur est survenue lors de la génération de la réponse pour l'agent ${agent.name}. Erreur : ${error.message || error.toString()}`;
     }
