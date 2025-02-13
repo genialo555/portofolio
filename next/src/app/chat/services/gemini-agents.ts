@@ -2,6 +2,14 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export type AgentRole = "pour" | "contre" | "synthese";
 
+// Log des variables d'environnement au chargement du module
+console.log("Chargement des variables d'environnement:", {
+  POUR_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1 ? "Défini" : "Non défini",
+  POUR_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2 ? "Défini" : "Non défini",
+  CONTRE_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1 ? "Défini" : "Non défini",
+  CONTRE_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2 ? "Défini" : "Non défini",
+});
+
 interface AgentConfig {
   name: string;
   role: AgentRole;
@@ -9,30 +17,46 @@ interface AgentConfig {
   personality: string;
 }
 
-// Configuration des agents
+// Configuration des agents avec vérification des clés
 export const AGENT_CONFIGS: AgentConfig[] = [
   {
     name: "Agent Pour 1",
     role: "pour",
-    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1 || "",
+    apiKey: (() => {
+      const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1 || "";
+      console.log("Initialisation Agent Pour 1 - Clé API:", key ? "Présente" : "Manquante");
+      return key;
+    })(),
     personality: "Je suis un agent qui défend activement le point de vue favorable, en m'appuyant sur des arguments logiques et des exemples concrets."
   },
   {
     name: "Agent Pour 2",
     role: "pour",
-    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2 || "",
+    apiKey: (() => {
+      const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2 || "";
+      console.log("Initialisation Agent Pour 2 - Clé API:", key ? "Présente" : "Manquante");
+      return key;
+    })(),
     personality: "Je suis un agent qui soutient la position favorable en explorant les avantages et les opportunités potentielles."
   },
   {
     name: "Agent Contre 1",
     role: "contre",
-    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1 || "",
+    apiKey: (() => {
+      const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1 || "";
+      console.log("Initialisation Agent Contre 1 - Clé API:", key ? "Présente" : "Manquante");
+      return key;
+    })(),
     personality: "Je suis un agent qui présente des contre-arguments réfléchis et soulève des points de vigilance importants."
   },
   {
     name: "Agent Contre 2",
     role: "contre",
-    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2 || "",
+    apiKey: (() => {
+      const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2 || "";
+      console.log("Initialisation Agent Contre 2 - Clé API:", key ? "Présente" : "Manquante");
+      return key;
+    })(),
     personality: "Je suis un agent qui examine de manière critique les potentiels inconvénients et risques à considérer."
   }
 ];
