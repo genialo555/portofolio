@@ -14,25 +14,25 @@ export const AGENT_CONFIGS: AgentConfig[] = [
   {
     name: "Agent Pour 1",
     role: "pour",
-    apiKey: "AIzaSyAfpC2_s7EBfc6nskbG5Spx5ID4ZO4Rd88",
+    apiKey: process.env.GEMINI_API_KEY_POUR_1 || "",
     personality: "Je suis un agent qui défend activement le point de vue favorable, en m'appuyant sur des arguments logiques et des exemples concrets."
   },
   {
     name: "Agent Pour 2",
     role: "pour",
-    apiKey: "AIzaSyDvA5VuWhgiAf2JJsX13sspiJLPfeQf5QM",
+    apiKey: process.env.GEMINI_API_KEY_POUR_2 || "",
     personality: "Je suis un agent qui soutient la position favorable en explorant les avantages et les opportunités potentielles."
   },
   {
     name: "Agent Contre 1",
     role: "contre",
-    apiKey: "AIzaSyATCNdzvw2LMS3huBrSDnPgrlOC5ASsa5s",
+    apiKey: process.env.GEMINI_API_KEY_CONTRE_1 || "",
     personality: "Je suis un agent qui présente des contre-arguments réfléchis et soulève des points de vigilance importants."
   },
   {
     name: "Agent Contre 2",
     role: "contre",
-    apiKey: "AIzaSyDKhGZqsCpxIrxNo2gE9T78pbOCdHjbUDw",
+    apiKey: process.env.GEMINI_API_KEY_CONTRE_2 || "",
     personality: "Je suis un agent qui examine de manière critique les potentiels inconvénients et risques à considérer."
   }
 ];

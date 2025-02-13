@@ -1,9 +1,8 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const config = {
   output: 'standalone',
   images: {
-    unoptimized: true,
+    domains: ['images.unsplash.com'],
   },
   eslint: {
     // Désactive la vérification ESLint pendant le build
@@ -32,4 +31,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default config;
