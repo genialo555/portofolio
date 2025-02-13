@@ -91,28 +91,40 @@ export async function getAgentResponse(
   context: string = ""
 ): Promise<string> {
   try {
+    // Vérifier si la clé API est présente
+    if (!agent.apiKey) {
+      console.error(`Clé API manquante pour l'agent ${agent.name}`);
+      return "Erreur de configuration : clé API manquante.";
+    }
+
+    console.log(`Tentative d'appel à l'API Gemini pour l'agent ${agent.name} avec la clé : ${agent.apiKey.substring(0, 10)}...`);
+
     const genAI = new GoogleGenerativeAI(agent.apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const prompt = generateAgentPrompt(agent, topic, context);
+    console.log(`Prompt généré pour ${agent.name}:`, prompt);
+
     const result = await model.generateContent(prompt);
+    console.log(`Réponse reçue de l'API pour ${agent.name}:`, result);
     
     // Vérifier si la réponse a été bloquée
     if (!result.response.text()) {
+      console.error(`Réponse bloquée pour l'agent ${agent.name}`);
       throw new Error("La réponse a été bloquée par les filtres de sécurité. Veuillez reformuler votre demande.");
     }
 
     return result.response.text();
   } catch (error: any) {
-    console.error(`Error with agent ${agent.name}:`, error);
+    console.error(`Erreur détaillée pour l'agent ${agent.name}:`, error);
     
     // Personnaliser le message d'erreur
     if (error?.toString().includes("SAFETY")) {
       return "Désolé, je ne peux pas répondre à cette demande car elle a été bloquée par les filtres de sécurité. Veuillez reformuler votre question de manière plus appropriée.";
     } else if (error?.toString().includes("API Key")) {
-      return "Erreur d'authentification avec l'API. Veuillez vérifier la configuration.";
+      return `Erreur d'authentification avec l'API pour l'agent ${agent.name}. Clé utilisée : ${agent.apiKey.substring(0, 10)}...`;
     } else {
-      return "Une erreur est survenue lors de la génération de la réponse. Veuillez réessayer.";
+      return `Une erreur est survenue lors de la génération de la réponse pour l'agent ${agent.name}. Erreur : ${error.message || error.toString()}`;
     }
   }
 }
@@ -125,28 +137,40 @@ export async function getSynthesis(
 ): Promise<string> {
   try {
     // Utiliser une des clés API pour la synthèse
-    const genAI = new GoogleGenerativeAI(AGENT_CONFIGS[0].apiKey);
+    const apiKey = AGENT_CONFIGS[0].apiKey;
+    if (!apiKey) {
+      console.error("Clé API manquante pour la synthèse");
+      return "Erreur de configuration : clé API manquante pour la synthèse.";
+    }
+
+    console.log("Tentative de synthèse avec la clé :", apiKey.substring(0, 10));
+
+    const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const prompt = generateSynthesisPrompt(topic, pourArguments, contreArguments);
+    console.log("Prompt de synthèse :", prompt);
+
     const result = await model.generateContent(prompt);
+    console.log("Réponse de synthèse reçue :", result);
     
     // Vérifier si la réponse a été bloquée
     if (!result.response.text()) {
+      console.error("Synthèse bloquée par les filtres de sécurité");
       throw new Error("La synthèse a été bloquée par les filtres de sécurité.");
     }
 
     return result.response.text();
   } catch (error: any) {
-    console.error("Error generating synthesis:", error);
+    console.error("Erreur détaillée pour la synthèse:", error);
     
     // Personnaliser le message d'erreur
     if (error?.toString().includes("SAFETY")) {
       return "Désolé, la synthèse a été bloquée par les filtres de sécurité. Veuillez reformuler le sujet de manière plus appropriée.";
     } else if (error?.toString().includes("API Key")) {
-      return "Erreur d'authentification avec l'API. Veuillez vérifier la configuration.";
+      return "Erreur d'authentification avec l'API pour la synthèse. Veuillez vérifier la configuration.";
     } else {
-      return "Une erreur est survenue lors de la génération de la synthèse. Veuillez réessayer.";
+      return `Une erreur est survenue lors de la génération de la synthèse. Erreur : ${error.message || error.toString()}`;
     }
   }
 }
@@ -158,19 +182,30 @@ export async function runDebate(topic: string): Promise<{
   synthese: string;
 }> {
   try {
+    console.log("Démarrage du débat sur le sujet :", topic);
+    console.log("Variables d'environnement disponibles :", {
+      POUR_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1?.substring(0, 10),
+      POUR_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2?.substring(0, 10),
+      CONTRE_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1?.substring(0, 10),
+      CONTRE_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2?.substring(0, 10),
+    });
+
     // Obtenir les réponses des agents "pour"
+    console.log("Obtention des arguments POUR...");
     const pourResponses = await Promise.all(
       AGENT_CONFIGS.filter(agent => agent.role === "pour")
         .map(agent => getAgentResponse(agent, topic))
     );
 
     // Obtenir les réponses des agents "contre"
+    console.log("Obtention des arguments CONTRE...");
     const contreResponses = await Promise.all(
       AGENT_CONFIGS.filter(agent => agent.role === "contre")
         .map(agent => getAgentResponse(agent, topic))
     );
 
     // Générer la synthèse
+    console.log("Génération de la synthèse...");
     const synthese = await getSynthesis(topic, pourResponses, contreResponses);
 
     return {
@@ -179,7 +214,7 @@ export async function runDebate(topic: string): Promise<{
       synthese
     };
   } catch (error) {
-    console.error("Error running debate:", error);
+    console.error("Erreur lors du débat complet:", error);
     return {
       pour: ["Erreur lors de la génération des arguments pour."],
       contre: ["Erreur lors de la génération des arguments contre."],
