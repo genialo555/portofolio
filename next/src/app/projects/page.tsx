@@ -63,15 +63,15 @@ export default function ProjectsPage() {
     {
       id: "chatbot",
       title: "AI Chatbot",
-      description: "Un chatbot intelligent utilisant des modèles de langage avancés pour des conversations naturelles et contextuelles.",
+      description: "Un système de débat multi-agents utilisant Gemini pour générer des discussions argumentées avec synthèse automatique.",
       thumbnail: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=1920&auto=format&fit=crop",
       type: "project",
-      tags: ["Python", "NLP", "TensorFlow", "API"],
-      demoUrl: "/projects/chatbot",
+      tags: ["Next.js", "Gemini API", "TypeScript", "Framer Motion"],
+      demoUrl: "/chat",
       features: [
-        "Traitement du langage naturel",
-        "Apprentissage continu",
-        "Intégration API",
+        "Débat multi-agents",
+        "Arguments pour et contre",
+        "Synthèse automatique",
         "Interface responsive"
       ],
       className: "md:col-span-1 h-[400px]"
@@ -131,7 +131,7 @@ export default function ProjectsPage() {
       {/* Back Arrow */}
       <Link 
         href="/"
-        className="fixed top-8 left-8 z-50 p-3 rounded-full bg-white/90 shadow-lg hover:bg-white hover:scale-110 transition-all duration-200 group"
+        className="fixed top-6 left-6 lg:top-8 lg:left-8 z-50 p-2 lg:p-3 rounded-full bg-white/90 shadow-lg hover:bg-white hover:scale-110 transition-all duration-200 group"
       >
         <svg 
           xmlns="http://www.w3.org/2000/svg" 
@@ -143,7 +143,7 @@ export default function ProjectsPage() {
           strokeWidth="2" 
           strokeLinecap="round" 
           strokeLinejoin="round" 
-          className="transform group-hover:-translate-x-1 transition-transform duration-200"
+          className="transform group-hover:-translate-x-1 transition-transform duration-200 w-5 h-5 lg:w-6 lg:h-6"
         >
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
@@ -167,20 +167,20 @@ export default function ProjectsPage() {
       {/* Content */}
       <div className="relative z-10 min-h-screen">
         {/* Titre et description */}
-        <div className="md:fixed relative left-0 top-0 w-full md:w-[600px] p-8 md:p-16 md:h-screen flex flex-col md:justify-center bg-white/80 backdrop-blur-sm">
-          <div className="space-y-6 md:space-y-8">
-            <h1 className="text-4xl md:text-7xl font-bold tracking-tight text-gray-900">
+        <div className="md:fixed relative left-0 top-0 w-full md:w-[450px] lg:w-[500px] p-6 sm:p-8 md:p-10 lg:p-12 md:min-h-screen flex flex-col md:justify-center bg-white/80 backdrop-blur-sm">
+          <div className="space-y-4 md:space-y-5 lg:space-y-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900">
               Mes Projets
             </h1>
-            <p className="text-lg md:text-3xl text-gray-600 leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 leading-relaxed">
               Une sélection de mes projets récents, mettant en avant mes compétences en développement full-stack, ML et IA.
             </p>
           </div>
         </div>
 
         {/* Grid des projets */}
-        <div className="w-full md:ml-[600px] px-4 md:px-8 py-8 md:py-[300px]">
-          <div className="max-w-[1200px] mx-auto">
+        <div className="w-full md:ml-[300px] lg:ml-[350px] px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8 md:py-10 lg:py-12">
+          <div className="max-w-[1200px] mx-auto pr-4 sm:pr-6 md:pr-8 lg:pr-10">
             <Suspense fallback={<GridSkeleton />}>
               <LayoutGrid cards={cards} />
             </Suspense>

@@ -50,9 +50,13 @@ export function RouteModal({ isOpen, onClose }: RouteModalProps) {
       onClick={handleClose}
     >
       {/* Widgets flottants */}
-      <div className="relative z-[1510]" onClick={e => e.stopPropagation()}>
-        <AirQualityWidget isOpen={true} />
-        <NotificationsWidget isOpen={true} />
+      <div className="relative z-[1510] flex flex-col gap-4 md:block" onClick={e => e.stopPropagation()}>
+        <div className="order-1 md:order-none">
+          <NotificationsWidget isOpen={true} />
+        </div>
+        <div className="order-2 md:order-none">
+          <AirQualityWidget isOpen={true} />
+        </div>
       </div>
 
       {/* Bouton de fermeture */}
@@ -85,9 +89,9 @@ export function RouteModal({ isOpen, onClose }: RouteModalProps) {
         transition={{ duration: 0.3, delay: 0.1 }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 p-4">
+        <div className="flex flex-col md:grid md:grid-cols-3 gap-4 md:gap-12 p-4 w-full">
           {/* Left Column - Input Form */}
-          <div className="bg-card rounded-lg shadow-lg animate-in slide-in-from-left-8 duration-500 fill-mode-forwards">
+          <div className="order-3 md:order-none bg-card rounded-lg shadow-lg animate-in slide-in-from-left-8 duration-500 fill-mode-forwards">
             <div className="p-6 space-y-6">
               <div>
                 <h2 className="text-lg font-semibold mb-2">Planifier un itinéraire</h2>
@@ -169,9 +173,11 @@ export function RouteModal({ isOpen, onClose }: RouteModalProps) {
 
           {/* Map Card */}
           <div className={cn(
+            "order-4 md:order-none",
             "bg-card rounded-lg shadow-lg",
             "animate-in slide-in-from-bottom-8 duration-500 fill-mode-forwards",
-            "delay-300"
+            "delay-300",
+            "md:col-span-1"
           )}>
             <RouteMapModal
               isOpen={true}
@@ -184,9 +190,11 @@ export function RouteModal({ isOpen, onClose }: RouteModalProps) {
 
           {/* Carbon Card */}
           <div className={cn(
+            "order-5 md:order-none",
             "bg-card rounded-lg shadow-lg",
             "animate-in slide-in-from-right-8 duration-500 fill-mode-forwards",
-            "delay-500"
+            "delay-500",
+            "md:col-span-1"
           )}>
             <RouteCarbonModal
               isOpen={true}
