@@ -14,25 +14,25 @@ export const AGENT_CONFIGS: AgentConfig[] = [
   {
     name: "Agent Pour 1",
     role: "pour",
-    apiKey: process.env.GEMINI_API_KEY_POUR_1 || "",
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1 || "",
     personality: "Je suis un agent qui défend activement le point de vue favorable, en m'appuyant sur des arguments logiques et des exemples concrets."
   },
   {
     name: "Agent Pour 2",
     role: "pour",
-    apiKey: process.env.GEMINI_API_KEY_POUR_2 || "",
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2 || "",
     personality: "Je suis un agent qui soutient la position favorable en explorant les avantages et les opportunités potentielles."
   },
   {
     name: "Agent Contre 1",
     role: "contre",
-    apiKey: process.env.GEMINI_API_KEY_CONTRE_1 || "",
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1 || "",
     personality: "Je suis un agent qui présente des contre-arguments réfléchis et soulève des points de vigilance importants."
   },
   {
     name: "Agent Contre 2",
     role: "contre",
-    apiKey: process.env.GEMINI_API_KEY_CONTRE_2 || "",
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2 || "",
     personality: "Je suis un agent qui examine de manière critique les potentiels inconvénients et risques à considérer."
   }
 ];
@@ -96,11 +96,24 @@ export async function getAgentResponse(
 
     const prompt = generateAgentPrompt(agent, topic, context);
     const result = await model.generateContent(prompt);
-    const response = result.response;
-    return response.text();
-  } catch (error) {
+    
+    // Vérifier si la réponse a été bloquée
+    if (!result.response.text()) {
+      throw new Error("La réponse a été bloquée par les filtres de sécurité. Veuillez reformuler votre demande.");
+    }
+
+    return result.response.text();
+  } catch (error: any) {
     console.error(`Error with agent ${agent.name}:`, error);
-    throw error;
+    
+    // Personnaliser le message d'erreur
+    if (error?.toString().includes("SAFETY")) {
+      return "Désolé, je ne peux pas répondre à cette demande car elle a été bloquée par les filtres de sécurité. Veuillez reformuler votre question de manière plus appropriée.";
+    } else if (error?.toString().includes("API Key")) {
+      return "Erreur d'authentification avec l'API. Veuillez vérifier la configuration.";
+    } else {
+      return "Une erreur est survenue lors de la génération de la réponse. Veuillez réessayer.";
+    }
   }
 }
 
@@ -117,11 +130,24 @@ export async function getSynthesis(
 
     const prompt = generateSynthesisPrompt(topic, pourArguments, contreArguments);
     const result = await model.generateContent(prompt);
-    const response = result.response;
-    return response.text();
-  } catch (error) {
+    
+    // Vérifier si la réponse a été bloquée
+    if (!result.response.text()) {
+      throw new Error("La synthèse a été bloquée par les filtres de sécurité.");
+    }
+
+    return result.response.text();
+  } catch (error: any) {
     console.error("Error generating synthesis:", error);
-    throw error;
+    
+    // Personnaliser le message d'erreur
+    if (error?.toString().includes("SAFETY")) {
+      return "Désolé, la synthèse a été bloquée par les filtres de sécurité. Veuillez reformuler le sujet de manière plus appropriée.";
+    } else if (error?.toString().includes("API Key")) {
+      return "Erreur d'authentification avec l'API. Veuillez vérifier la configuration.";
+    } else {
+      return "Une erreur est survenue lors de la génération de la synthèse. Veuillez réessayer.";
+    }
   }
 }
 
@@ -154,6 +180,10 @@ export async function runDebate(topic: string): Promise<{
     };
   } catch (error) {
     console.error("Error running debate:", error);
-    throw error;
+    return {
+      pour: ["Erreur lors de la génération des arguments pour."],
+      contre: ["Erreur lors de la génération des arguments contre."],
+      synthese: "Une erreur est survenue lors de la génération du débat. Veuillez réessayer."
+    };
   }
 } 
