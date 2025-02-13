@@ -12,11 +12,6 @@ const config = {
     // Désactive la vérification TypeScript pendant le build
     ignoreBuildErrors: true,
   },
-  // Configuration du serveur
-  server: {
-    port: parseInt(process.env.PORT || '3000', 10),
-    host: '0.0.0.0'
-  },
   // Ajouter les domaines autorisés
   async rewrites() {
     return {
