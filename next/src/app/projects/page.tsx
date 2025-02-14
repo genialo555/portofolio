@@ -33,7 +33,7 @@ export default function ProjectsPage() {
       title: "EcoTrack",
       description: "Une application de suivi d'empreinte carbone avec planification d'itinéraires écologiques et recommandations personnalisées.",
       thumbnail: "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=1920&auto=format&fit=crop",
-      type: "project",
+      type: "project" as const,
       tags: ["Next.js", "ML", "API Maps", "TypeScript"],
       demoUrl: "/projects/ecotrack",
       features: [
@@ -49,7 +49,7 @@ export default function ProjectsPage() {
       title: "Planificateur d'Itinéraire",
       description: "Un widget interactif pour planifier des itinéraires écologiques avec calcul d'empreinte carbone en temps réel.",
       thumbnail: "https://images.unsplash.com/photo-1520531158340-44015069e78e?q=80&w=1920&auto=format&fit=crop",
-      type: "widget",
+      type: "widget" as const,
       tags: ["React", "Maps API", "Real-time", "UX/UI"],
       demoUrl: "/projects/route-planner",
       features: [
@@ -65,7 +65,7 @@ export default function ProjectsPage() {
       title: "AI Chatbot",
       description: "Un système de débat multi-agents utilisant Gemini pour générer des discussions argumentées avec synthèse automatique.",
       thumbnail: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=1920&auto=format&fit=crop",
-      type: "project",
+      type: "project" as const,
       tags: ["Next.js", "Gemini API", "TypeScript", "Framer Motion"],
       demoUrl: "/chat",
       features: [
@@ -81,7 +81,7 @@ export default function ProjectsPage() {
       title: "Golddy",
       description: "Plateforme d'analyse avancée pour influenceurs Instagram, offrant des insights détaillés et des recommandations d'optimisation.",
       thumbnail: "https://images.unsplash.com/photo-1449495169669-7b118f960251?q=80&w=1920&auto=format&fit=crop",
-      type: "widget",
+      type: "widget" as const,
       tags: ["Vue.js", "ML", "API Instagram", "Analytics"],
       demoUrl: "/projects/golddy",
       features: [
@@ -97,9 +97,9 @@ export default function ProjectsPage() {
       title: "Analytics Dashboard",
       description: "Tableau de bord analytique en temps réel avec visualisations de données interactives.",
       thumbnail: "https://images.unsplash.com/photo-1426604966848-d7adac402bff?q=80&w=1920&auto=format&fit=crop",
-      type: "widget",
+      type: "widget" as const,
       tags: ["React", "D3.js", "WebSocket", "TypeScript"],
-      demoUrl: "/projects/dashboard",
+      demoUrl: "/projects/golddy#dashboard",
       features: [
         "Visualisations temps réel",
         "Filtres dynamiques",
@@ -113,7 +113,7 @@ export default function ProjectsPage() {
       title: "Portfolio Interactif",
       description: "Mon portfolio personnel avec des animations avancées, intégration ML et démonstrations de composants.",
       thumbnail: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1920&auto=format&fit=crop",
-      type: "project",
+      type: "project" as const,
       tags: ["Next.js", "Framer Motion", "Tailwind", "TypeScript"],
       demoUrl: "/",
       features: [
@@ -127,7 +127,7 @@ export default function ProjectsPage() {
   ];
 
   return (
-    <div className="relative min-h-screen bg-white">
+    <div className="relative min-h-screen bg-white overflow-x-hidden">
       {/* Back Arrow */}
       <Link 
         href="/"
@@ -165,9 +165,9 @@ export default function ProjectsPage() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 min-h-screen">
+      <div className="relative z-10 min-h-screen flex flex-col md:flex-row">
         {/* Titre et description */}
-        <div className="md:fixed relative left-0 top-0 w-full md:w-[450px] lg:w-[500px] p-6 sm:p-8 md:p-10 lg:p-12 md:min-h-screen flex flex-col md:justify-center bg-white/80 backdrop-blur-sm">
+        <div className="md:sticky md:top-0 md:left-0 w-full md:w-[350px] lg:w-[400px] p-6 sm:p-8 md:p-10 lg:p-12 md:h-screen flex flex-col md:justify-center bg-white/80 backdrop-blur-sm shrink-0">
           <div className="space-y-4 md:space-y-5 lg:space-y-6">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900">
               Mes Projets
@@ -179,8 +179,8 @@ export default function ProjectsPage() {
         </div>
 
         {/* Grid des projets */}
-        <div className="w-full md:ml-[300px] lg:ml-[350px] px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8 md:py-10 lg:py-12">
-          <div className="max-w-[1200px] mx-auto pr-4 sm:pr-6 md:pr-8 lg:pr-10">
+        <div className="flex-1 p-4 sm:p-6 md:p-8 lg:p-10">
+          <div className="max-w-[1000px] mx-auto">
             <Suspense fallback={<GridSkeleton />}>
               <LayoutGrid cards={cards} />
             </Suspense>
