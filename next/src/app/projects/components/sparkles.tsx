@@ -4,7 +4,25 @@ import { useEffect, useState } from "react";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 
-export const SparklesCore = () => {
+interface SparklesCoreProps {
+  id?: string;
+  background?: string;
+  minSize?: number;
+  maxSize?: number;
+  particleDensity?: number;
+  className?: string;
+  particleColor?: string;
+}
+
+export const SparklesCore: React.FC<SparklesCoreProps> = ({
+  id,
+  background = "#000",
+  minSize = 0.4,
+  maxSize = 1,
+  particleDensity = 100,
+  className,
+  particleColor = "#fff"
+}) => {
   const [init, setInit] = useState(false);
 
   useEffect(() => {

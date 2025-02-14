@@ -36,6 +36,7 @@ export default function ProjectsPage() {
       type: "project" as const,
       tags: ["Next.js", "ML", "API Maps", "TypeScript"],
       demoUrl: "/projects/ecotrack",
+      githubUrl: "https://github.com/genialo555/ecotrack1.0",
       features: [
         "Planification d'itinéraires écologiques",
         "Modal interactif de trajet",
@@ -84,6 +85,7 @@ export default function ProjectsPage() {
       type: "widget" as const,
       tags: ["Vue.js", "ML", "API Instagram", "Analytics"],
       demoUrl: "/projects/golddy",
+      githubUrl: "https://github.com/genialo555/golddy",
       features: [
         "Analyse de performance des posts",
         "Prédiction d'engagement",
