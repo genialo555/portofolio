@@ -20,6 +20,7 @@ import { MediaToolbar } from "@/components/ui/media-toolbar"
 import Image from "next/image"
 import { ShimmerButton } from "@/components/ui/shimmer-button"
 import { Vortex } from "@/components/ui/loading-vortex"
+import Link from "next/link"
 
 interface Message {
   id: string
@@ -41,6 +42,14 @@ interface MediaContent {
   url: string
   alt?: string
 }
+
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 export default function ChatPage() {
   const [hovered, setHovered] = useState(false)
@@ -100,7 +109,7 @@ export default function ChatPage() {
       await new Promise(resolve => setTimeout(resolve, 5000))
 
       const newDebate: Debate = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         topic: topic.trim(),
         messages: [],
         lastUpdated: new Date()
@@ -112,21 +121,21 @@ export default function ChatPage() {
 
       // Ajouter les messages avec le média sélectionné
       const pourMessages: Message[] = result.pour.map(content => ({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         content: content.replace(/\*/g, '').trim(),
         role: "pour",
         timestamp: new Date()
       }))
 
       const contreMessages: Message[] = result.contre.map(content => ({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         content: content.replace(/\*/g, '').trim(),
         role: "contre",
         timestamp: new Date()
       }))
 
       const syntheseMessage: Message = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         content: result.synthese.replace(/\*/g, '').trim(),
         role: "synthese",
         timestamp: new Date()
@@ -160,6 +169,27 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      {/* Bouton de retour */}
+      <Link 
+        href="/"
+        className="fixed top-8 left-8 z-[9999] p-3 rounded-full bg-white/90 shadow-lg hover:bg-white hover:scale-110 transition-all duration-200 group"
+      >
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width="24" 
+          height="24" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className="transform group-hover:-translate-x-1 transition-transform duration-200"
+        >
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+      </Link>
+
       {/* Ajouter l'effet de vortex */}
       <AnimatePresence>
         {showVortex && (
