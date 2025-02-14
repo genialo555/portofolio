@@ -21,6 +21,14 @@ import Image from "next/image"
 import { ShimmerButton } from "@/components/ui/shimmer-button"
 import { Vortex } from "@/components/ui/loading-vortex"
 import Link from "next/link"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface Message {
   id: string
@@ -59,6 +67,7 @@ export default function ChatPage() {
   const [selectedMedia, setSelectedMedia] = useState<MediaContent | null>(null)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   const [showVortex, setShowVortex] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
   const handleImageSelect = async (file: File) => {
     const url = URL.createObjectURL(file)
@@ -477,6 +486,30 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="max-w-4xl h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Débat : {currentDebate?.topic}</DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-4 py-4">
+            {currentDebate?.messages.map((message) => (
+              <ChatBubble key={message.id} role={message.role}>
+                <ChatBubbleMessage role={message.role}>
+                  {message.content}
+                </ChatBubbleMessage>
+              </ChatBubble>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowModal(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 
