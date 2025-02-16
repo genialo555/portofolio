@@ -1,64 +1,115 @@
-import { AIModel } from "../page"
+import { AIModel, ModelConfig, DebateRole, CrossModelConfig } from "../types"
+import { generateQwenResponse } from "./qwen-service"
+import { generateDeepSeekResponse } from "./deepseek-service"
 
 const HUGGING_FACE_API_URL = "https://api-inference.huggingface.co/models"
 
-export interface ModelConfig {
-  id: AIModel
-  name: string
-  description: string
-  modelId: string
-  maxLength: number
-  temperature: number
+export interface Message {
+  id: string;
+  content: string;
+  role: "pour" | "contre" | "synthese";
+  timestamp: Date;
+  media?: {
+    type: "image" | "video";
+    url: string;
+    alt?: string;
+  };
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  lastUpdated: Date;
+  model: AIModel;
 }
 
 export const AI_MODELS: ModelConfig[] = [
   {
-    id: "qwen",
-    name: "Qwen 1.5",
-    description: "Modèle multilingue performant de Alibaba",
-    modelId: "Qwen/Qwen1.5-7B-Chat",
-    maxLength: 2048,
-    temperature: 0.7
-  },
-  {
-    id: "mistral",
-    name: "Mistral 7B",
-    description: "Modèle français open source très performant",
-    modelId: "mistralai/Mistral-7B-Instruct-v0.2",
-    maxLength: 2048,
-    temperature: 0.7
-  },
-  {
-    id: "yi",
-    name: "Yi 34B",
-    description: "Modèle multilingue de 01.AI",
-    modelId: "01-ai/Yi-34B-Chat",
+    id: "gemini",
+    name: "Gemini Pro",
+    description: "Modèle le plus avancé de Google, excellent pour tous les rôles",
+    modelId: "google/gemini-pro",
     maxLength: 4096,
-    temperature: 0.7
+    temperature: 0.7,
+    recommendedRoles: ["pour", "contre", "synthese"]
   },
   {
-    id: "openchat",
-    name: "OpenChat 3.5",
-    description: "Alternative open source à GPT-3.5",
-    modelId: "openchat/openchat-3.5",
-    maxLength: 2048,
-    temperature: 0.7
+    id: "qwen-max",
+    name: "Qwen 2.5 Max",
+    description: "Version la plus puissante de Qwen, excellente pour la synthèse",
+    modelId: "qwen-max",
+    maxLength: 8192,
+    temperature: 0.7,
+    recommendedRoles: ["synthese", "pour"]
   },
   {
-    id: "solar",
-    name: "Solar 10.7B",
-    description: "Modèle performant de Upstage",
-    modelId: "upstage/SOLAR-10.7B-Instruct-v1.0",
+    id: "qwen-plus",
+    name: "Qwen 2.5 Plus",
+    description: "Version équilibrée de Qwen, bon rapport performance/coût",
+    modelId: "qwen-plus",
+    maxLength: 4096,
+    temperature: 0.7,
+    recommendedRoles: ["pour", "contre"]
+  },
+  {
+    id: "qwen-turbo",
+    name: "Qwen 2.5 Turbo",
+    description: "Version rapide de Qwen, idéale pour les réponses courtes",
+    modelId: "qwen-turbo",
     maxLength: 2048,
-    temperature: 0.7
+    temperature: 0.7,
+    recommendedRoles: ["pour", "contre"]
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek Chat",
+    description: "Modèle très performant pour l'argumentation avec un large contexte",
+    modelId: "deepseek-chat",
+    maxLength: 8192,
+    temperature: 0.7,
+    recommendedRoles: ["pour", "contre"]
+  },
+  {
+    id: "deepseek-reasoner",
+    name: "DeepSeek Reasoner",
+    description: "Version spécialisée dans le raisonnement et l'analyse",
+    modelId: "deepseek-reasoner",
+    maxLength: 8192,
+    temperature: 0.7,
+    recommendedRoles: ["synthese", "contre"]
   }
 ]
+
+export const DEFAULT_MODEL_CONFIG: CrossModelConfig = {
+  pour: "gemini",
+  contre: "deepseek",
+  synthese: "qwen-max"
+}
 
 export async function generateResponse(
   message: string,
   modelConfig: ModelConfig,
   apiKey: string
 ) {
+  if (modelConfig.id.startsWith('qwen-')) {
+    return generateQwenResponse(
+      message,
+      modelConfig.id,
+      modelConfig.maxLength,
+      modelConfig.temperature
+    );
+  }
+  
+  if (modelConfig.id.startsWith('deepseek')) {
+    return generateDeepSeekResponse(
+      message,
+      modelConfig.id,
+      modelConfig.maxLength,
+      modelConfig.temperature
+    );
+  }
+
   try {
     const response = await fetch(
       `${HUGGING_FACE_API_URL}/${modelConfig.modelId}`,
@@ -87,7 +138,7 @@ export async function generateResponse(
     const result = await response.json()
     return result[0].generated_text
   } catch (error) {
-    console.error("Error calling Hugging Face API:", error)
+    console.error("Error calling API:", error)
     throw error
   }
 }

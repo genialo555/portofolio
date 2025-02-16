@@ -61,6 +61,17 @@ export const AGENT_CONFIGS: AgentConfig[] = [
   }
 ];
 
+const GEMINI_API_KEYS = {
+  pour: {
+    key1: process.env.GEMINI_API_KEY_POUR_1 || "",
+    key2: process.env.GEMINI_API_KEY_POUR_2 || ""
+  },
+  contre: {
+    key1: process.env.GEMINI_API_KEY_CONTRE_1 || "",
+    key2: process.env.GEMINI_API_KEY_CONTRE_2 || ""
+  }
+};
+
 // Fonction pour générer le prompt de l'agent
 function generateAgentPrompt(
   agent: AgentConfig,

@@ -68,7 +68,7 @@ export default function ProjectsPage() {
       thumbnail: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=1920&auto=format&fit=crop",
       type: "project" as const,
       tags: ["Next.js", "Gemini API", "TypeScript", "Framer Motion"],
-      demoUrl: "/chat",
+      demoUrl: "/projects/chatbot",
       features: [
         "Débat multi-agents",
         "Arguments pour et contre",

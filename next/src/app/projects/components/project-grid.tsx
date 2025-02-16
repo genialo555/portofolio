@@ -8,6 +8,7 @@ import { Card } from "@/types";
 import { WavesBackground } from "@/components/ui/waves-background";
 import { LoadingState } from "@/app/projects/demos/route-modal/components/loading-state";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 // Separate the image component for better performance
 const ImageComponent = ({ card }: { card: Card }) => {
@@ -90,25 +91,61 @@ const SelectedCard = ({ project, onClose }: { project: Card; onClose: () => void
           <h2 className="text-2xl font-semibold text-gray-900">{project.title}</h2>
           <p className="mt-2 text-gray-600">{project.description}</p>
           
-          <div className="mt-6 flex gap-4">
-            {project.title === "Planificateur d'itinéraire" ? (
-              <button
-                onClick={handleLiveDemo}
-                className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900"
-              >
-                Live Demo
-                <span className="text-xs">↗</span>
-              </button>
-            ) : project.demoUrl && (
-              <a
-                href={project.demoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900"
-              >
-                Live Demo
-                <span className="text-xs">↗</span>
-              </a>
+          <div className="mt-6 flex flex-wrap gap-4">
+            {project.demoUrl && (
+              <div className="flex gap-2">
+                {project.title === "Golddy" ? (
+                  <>
+                    <Link
+                      href={project.demoUrl}
+                      className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900"
+                    >
+                      Voir la page
+                      <span className="text-xs">↗</span>
+                    </Link>
+                    <Link
+                      href={`${project.demoUrl}#dashboard`}
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50"
+                    >
+                      Voir le dashboard
+                      <span className="text-xs">↗</span>
+                    </Link>
+                  </>
+                ) : project.title === "AI Chatbot" ? (
+                  <>
+                    <Link
+                      href={project.demoUrl}
+                      className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900"
+                    >
+                      Voir la page
+                      <span className="text-xs">↗</span>
+                    </Link>
+                    <Link
+                      href="/chat"
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50"
+                    >
+                      Lancer un débat
+                      <span className="text-xs">↗</span>
+                    </Link>
+                  </>
+                ) : project.title === "Planificateur d'itinéraire" ? (
+                  <button
+                    onClick={handleLiveDemo}
+                    className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900"
+                  >
+                    Live Demo
+                    <span className="text-xs">↗</span>
+                  </button>
+                ) : (
+                  <Link
+                    href={project.demoUrl}
+                    className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900"
+                  >
+                    Live Demo
+                    <span className="text-xs">↗</span>
+                  </Link>
+                )}
+              </div>
             )}
             {project.githubUrl && (
               <a
