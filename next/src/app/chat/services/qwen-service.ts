@@ -1,18 +1,24 @@
 import OpenAI from "openai";
 import { AIModel } from "../types";
 
+// Log des variables d'environnement au chargement du module
+console.log("Chargement des variables d'environnement Qwen:", {
+  KEY_1: process.env.NEXT_PUBLIC_QWEN_API_KEY_1 ? "Défini" : "Non défini",
+  KEY_2: process.env.NEXT_PUBLIC_QWEN_API_KEY_2 ? "Défini" : "Non défini"
+});
+
 const QWEN_API_KEYS = {
   "qwen-max": {
-    key1: process.env.QWEN_API_KEY_1 || "",
-    key2: process.env.QWEN_API_KEY_2 || ""
+    key1: process.env.NEXT_PUBLIC_QWEN_API_KEY_1 || "",
+    key2: process.env.NEXT_PUBLIC_QWEN_API_KEY_2 || ""
   },
   "qwen-plus": {
-    key1: process.env.QWEN_API_KEY_1 || "",
-    key2: process.env.QWEN_API_KEY_2 || ""
+    key1: process.env.NEXT_PUBLIC_QWEN_API_KEY_1 || "",
+    key2: process.env.NEXT_PUBLIC_QWEN_API_KEY_2 || ""
   },
   "qwen-turbo": {
-    key1: process.env.QWEN_API_KEY_1 || "",
-    key2: process.env.QWEN_API_KEY_2 || ""
+    key1: process.env.NEXT_PUBLIC_QWEN_API_KEY_1 || "",
+    key2: process.env.NEXT_PUBLIC_QWEN_API_KEY_2 || ""
   }
 };
 
@@ -32,6 +38,11 @@ const QWEN_MODELS = {
 };
 
 const createQwenClient = (apiKey: string) => {
+  // Vérifier que la clé API est au format UUID attendu
+  if (!apiKey.match(/^517-[a-f0-9]{16}-[1-8]$/)) {
+    throw new Error("Invalid Qwen API key format");
+  }
+
   return new OpenAI({
     apiKey,
     baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"

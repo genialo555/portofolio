@@ -2,10 +2,12 @@
   "name": "next",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p ${PORT:-8080}",
+    "start:prod": "next start -p 8080",
     "lint": "next lint"
   },
   "dependencies": {

@@ -1,9 +1,15 @@
 import OpenAI from "openai";
 import { AIModel } from "../types";
 
+// Log des variables d'environnement au chargement du module
+console.log("Chargement des variables d'environnement DeepSeek:", {
+  KEY_1: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY_1 ? "Défini" : "Non défini",
+  KEY_2: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY_2 ? "Défini" : "Non défini"
+});
+
 const DEEPSEEK_API_KEYS = {
-  key1: process.env.DEEPSEEK_API_KEY_1 || "",
-  key2: process.env.DEEPSEEK_API_KEY_2 || ""
+  key1: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY_1 || "",
+  key2: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY_2 || ""
 };
 
 const DEEPSEEK_MODELS = {
@@ -20,6 +26,11 @@ const DEEPSEEK_MODELS = {
 };
 
 const createDeepSeekClient = (apiKey: string) => {
+  // Vérifier que la clé API est au format UUID attendu
+  if (!apiKey.match(/^517-[a-f0-9]{16}-[1-8]$/)) {
+    throw new Error("Invalid DeepSeek API key format");
+  }
+
   return new OpenAI({
     apiKey,
     baseURL: "https://api.deepseek.com/v1",

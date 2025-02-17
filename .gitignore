@@ -156,6 +156,46 @@ env/
 *.tar.gz
 *.tar
 *.rar
-*.7zgit init
+*.7z
+
+# Root level configuration files that should only be in subdirectories
+/next.config.js
+/next.config.ts
+/package.json
+/tsconfig.json
+/yarn.lock
+/Dockerfile
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.*
+env.yaml
+
+# Build outputs
+.next/
+dist/
+build/
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Cache
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+git init
 git add .
 git commit -m "Initial commit"

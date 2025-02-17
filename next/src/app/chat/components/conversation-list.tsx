@@ -76,7 +76,7 @@ export function ConversationList({
                     })}
                   </span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
-                    {conversation.model}
+                    {conversation.models.pour}
                   </span>
                 </div>
               </div>

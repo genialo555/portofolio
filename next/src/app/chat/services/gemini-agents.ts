@@ -2,12 +2,19 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export type AgentRole = "pour" | "contre" | "synthese";
 
-// Log des variables d'environnement au chargement du module
-console.log("Chargement des variables d'environnement:", {
-  POUR_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1 ? "Défini" : "Non défini",
-  POUR_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2 ? "Défini" : "Non défini",
-  CONTRE_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1 ? "Défini" : "Non défini",
-  CONTRE_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2 ? "Défini" : "Non défini",
+// Log détaillé des variables d'environnement au chargement du module
+console.log("=== Débogage des variables d'environnement ===");
+console.log("Variables d'environnement brutes:", {
+  POUR_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1,
+  POUR_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2,
+  CONTRE_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1,
+  CONTRE_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2
+});
+
+// Vérification de l'environnement
+console.log("Environnement:", {
+  NODE_ENV: process.env.NODE_ENV,
+  IS_BROWSER: typeof window !== 'undefined'
 });
 
 interface AgentConfig {
@@ -17,58 +24,52 @@ interface AgentConfig {
   personality: string;
 }
 
-// Configuration des agents avec vérification des clés
-export const AGENT_CONFIGS: AgentConfig[] = [
+// Configuration des agents avec vérification
+const AGENT_CONFIGS: AgentConfig[] = [
   {
     name: "Agent Pour 1",
     role: "pour",
-    apiKey: (() => {
-      const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1 || "";
-      console.log("Initialisation Agent Pour 1 - Clé API:", key ? "Présente" : "Manquante");
-      return key;
-    })(),
-    personality: "Je suis un agent qui défend activement le point de vue favorable, en m'appuyant sur des arguments logiques et des exemples concrets."
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1 || "",
+    personality: "Vous êtes un agent qui défend le point de vue positif avec des arguments constructifs et bien structurés."
   },
   {
     name: "Agent Pour 2",
     role: "pour",
-    apiKey: (() => {
-      const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2 || "";
-      console.log("Initialisation Agent Pour 2 - Clé API:", key ? "Présente" : "Manquante");
-      return key;
-    })(),
-    personality: "Je suis un agent qui soutient la position favorable en explorant les avantages et les opportunités potentielles."
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2 || "",
+    personality: "Vous êtes un agent qui renforce les arguments positifs avec des exemples concrets et des données."
   },
   {
     name: "Agent Contre 1",
     role: "contre",
-    apiKey: (() => {
-      const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1 || "";
-      console.log("Initialisation Agent Contre 1 - Clé API:", key ? "Présente" : "Manquante");
-      return key;
-    })(),
-    personality: "Je suis un agent qui présente des contre-arguments réfléchis et soulève des points de vigilance importants."
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1 || "",
+    personality: "Vous êtes un agent qui présente des contre-arguments logiques et réfléchis."
   },
   {
     name: "Agent Contre 2",
     role: "contre",
-    apiKey: (() => {
-      const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2 || "";
-      console.log("Initialisation Agent Contre 2 - Clé API:", key ? "Présente" : "Manquante");
-      return key;
-    })(),
-    personality: "Je suis un agent qui examine de manière critique les potentiels inconvénients et risques à considérer."
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2 || "",
+    personality: "Vous êtes un agent qui soulève des points critiques importants avec une approche analytique."
   }
 ];
 
+// Log de vérification des configurations
+console.log("=== Vérification des configurations des agents ===");
+AGENT_CONFIGS.forEach(agent => {
+  console.log(`${agent.name}:`, {
+    hasApiKey: !!agent.apiKey,
+    keyLength: agent.apiKey?.length || 0,
+    keyStart: agent.apiKey ? agent.apiKey.substring(0, 10) + "..." : "non définie"
+  });
+});
+
 const GEMINI_API_KEYS = {
   pour: {
-    key1: process.env.GEMINI_API_KEY_POUR_1 || "",
-    key2: process.env.GEMINI_API_KEY_POUR_2 || ""
+    key1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1 || "",
+    key2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2 || ""
   },
   contre: {
-    key1: process.env.GEMINI_API_KEY_CONTRE_1 || "",
-    key2: process.env.GEMINI_API_KEY_CONTRE_2 || ""
+    key1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1 || "",
+    key2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2 || ""
   }
 };
 
@@ -126,59 +127,42 @@ export async function getAgentResponse(
   context: string = ""
 ): Promise<string> {
   try {
-    // Vérifier si la clé API est présente et bien formatée
     if (!agent.apiKey) {
       console.error(`Clé API manquante pour l'agent ${agent.name}`);
-      return "Erreur de configuration : clé API manquante.";
+      throw new Error("API key not configured");
     }
 
-    if (!agent.apiKey.startsWith('AI')) {
-      console.error(`Format de clé API invalide pour l'agent ${agent.name}. La clé doit commencer par 'AI'`);
-      return "Erreur de configuration : format de clé API invalide.";
-    }
+    console.log(`Tentative d'appel API pour ${agent.name} avec la clé: ${agent.apiKey.substring(0, 10)}...`);
 
-    console.log(`Configuration de l'agent ${agent.name}:`, {
-      role: agent.role,
-      apiKeyPrefix: agent.apiKey.substring(0, 10),
-      apiKeyLength: agent.apiKey.length
+    const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': agent.apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: generateAgentPrompt(agent, topic, context)
+          }]
+        }]
+      })
     });
 
-    const genAI = new GoogleGenerativeAI(agent.apiKey);
-    console.log(`Instance GoogleGenerativeAI créée pour ${agent.name}`);
-    
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-    console.log(`Modèle gemini-pro obtenu pour ${agent.name}`);
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.statusText}`);
+    }
 
-    const prompt = generateAgentPrompt(agent, topic, context);
-    console.log(`Prompt généré pour ${agent.name}:`, prompt);
-
-    console.log(`Début de l'appel API pour ${agent.name}...`);
-    const result = await model.generateContent(prompt);
-    console.log(`Réponse reçue de l'API pour ${agent.name}:`, result);
+    const result = await response.json();
     
-    // Vérifier si la réponse a été bloquée
-    if (!result.response.text()) {
-      console.error(`Réponse bloquée pour l'agent ${agent.name}`);
+    if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
       throw new Error("La réponse a été bloquée par les filtres de sécurité. Veuillez reformuler votre demande.");
     }
 
-    return result.response.text();
+    return result.candidates[0].content.parts[0].text;
   } catch (error: any) {
-    console.error(`Erreur détaillée pour l'agent ${agent.name}:`, {
-      error: error.toString(),
-      stack: error.stack,
-      message: error.message,
-      name: error.name
-    });
-    
-    // Personnaliser le message d'erreur
-    if (error?.toString().includes("SAFETY")) {
-      return "Désolé, je ne peux pas répondre à cette demande car elle a été bloquée par les filtres de sécurité. Veuillez reformuler votre question de manière plus appropriée.";
-    } else if (error?.toString().includes("API Key")) {
-      return `Erreur d'authentification avec l'API pour l'agent ${agent.name}. Détails : ${error.message}`;
-    } else {
-      return `Une erreur est survenue lors de la génération de la réponse pour l'agent ${agent.name}. Erreur : ${error.message || error.toString()}`;
-    }
+    console.error(`Erreur lors de l'appel à l'API pour l'agent ${agent.name}:`, error);
+    throw error;
   }
 }
 
@@ -189,42 +173,42 @@ export async function getSynthesis(
   contreArguments: string[]
 ): Promise<string> {
   try {
-    // Utiliser une des clés API pour la synthèse
     const apiKey = AGENT_CONFIGS[0].apiKey;
     if (!apiKey) {
-      console.error("Clé API manquante pour la synthèse");
-      return "Erreur de configuration : clé API manquante pour la synthèse.";
+      throw new Error("API key not configured for synthesis");
     }
-
-    console.log("Tentative de synthèse avec la clé :", apiKey.substring(0, 10));
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const prompt = generateSynthesisPrompt(topic, pourArguments, contreArguments);
-    console.log("Prompt de synthèse :", prompt);
 
-    const result = await model.generateContent(prompt);
-    console.log("Réponse de synthèse reçue :", result);
-    
-    // Vérifier si la réponse a été bloquée
-    if (!result.response.text()) {
-      console.error("Synthèse bloquée par les filtres de sécurité");
-      throw new Error("La synthèse a été bloquée par les filtres de sécurité.");
+    const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.statusText}`);
     }
 
-    return result.response.text();
+    const result = await response.json();
+    
+    if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
+      throw new Error("La synthèse a été bloquée par les filtres de sécurité. Veuillez reformuler la demande.");
+    }
+
+    return result.candidates[0].content.parts[0].text;
   } catch (error: any) {
-    console.error("Erreur détaillée pour la synthèse:", error);
-    
-    // Personnaliser le message d'erreur
-    if (error?.toString().includes("SAFETY")) {
-      return "Désolé, la synthèse a été bloquée par les filtres de sécurité. Veuillez reformuler le sujet de manière plus appropriée.";
-    } else if (error?.toString().includes("API Key")) {
-      return "Erreur d'authentification avec l'API pour la synthèse. Veuillez vérifier la configuration.";
-    } else {
-      return `Une erreur est survenue lors de la génération de la synthèse. Erreur : ${error.message || error.toString()}`;
-    }
+    console.error("Erreur lors de la génération de la synthèse:", error);
+    throw new Error(`Erreur lors de la génération de la synthèse: ${error.message}`);
   }
 }
 
@@ -236,12 +220,12 @@ export async function runDebate(topic: string): Promise<{
 }> {
   try {
     console.log("Démarrage du débat sur le sujet :", topic);
-    console.log("Variables d'environnement disponibles :", {
-      POUR_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_1?.substring(0, 10),
-      POUR_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_POUR_2?.substring(0, 10),
-      CONTRE_1: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_1?.substring(0, 10),
-      CONTRE_2: process.env.NEXT_PUBLIC_GEMINI_API_KEY_CONTRE_2?.substring(0, 10),
-    });
+    
+    // Vérification des clés API
+    const missingKeys = AGENT_CONFIGS.filter(agent => !agent.apiKey);
+    if (missingKeys.length > 0) {
+      throw new Error(`Clés API manquantes pour les agents: ${missingKeys.map(a => a.name).join(', ')}`);
+    }
 
     // Obtenir les réponses des agents "pour"
     console.log("Obtention des arguments POUR...");
@@ -268,10 +252,6 @@ export async function runDebate(topic: string): Promise<{
     };
   } catch (error) {
     console.error("Erreur lors du débat complet:", error);
-    return {
-      pour: ["Erreur lors de la génération des arguments pour."],
-      contre: ["Erreur lors de la génération des arguments contre."],
-      synthese: "Une erreur est survenue lors de la génération du débat. Veuillez réessayer."
-    };
+    throw error;
   }
 } 
