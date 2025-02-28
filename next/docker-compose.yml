@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  nextjs:
+    build:
+      context: .
+      dockerfile: next/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_URL=https://jeremie-nunez.com
+      - NEXT_PUBLIC_SITE_URL=https://jeremie-nunez.com
+      - NEXT_PUBLIC_API_URL=https://api.jeremie-nunez.com
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3 

@@ -1,17 +1,6 @@
-import OpenAI from "openai";
 import { AIModel } from "../types";
 
-// Log des variables d'environnement au chargement du module
-console.log("Chargement des variables d'environnement DeepSeek:", {
-  KEY_1: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY_1 ? "Défini" : "Non défini",
-  KEY_2: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY_2 ? "Défini" : "Non défini"
-});
-
-const DEEPSEEK_API_KEYS = {
-  key1: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY_1 || "",
-  key2: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY_2 || ""
-};
-
+// Configuration des modèles DeepSeek
 const DEEPSEEK_MODELS = {
   "deepseek": {
     modelName: "deepseek-chat",
@@ -25,23 +14,28 @@ const DEEPSEEK_MODELS = {
   }
 };
 
-const createDeepSeekClient = (apiKey: string) => {
-  // Vérifier que la clé API est au format UUID attendu
-  if (!apiKey.match(/^517-[a-f0-9]{16}-[1-8]$/)) {
-    throw new Error("Invalid DeepSeek API key format");
+// Utiliser une API côté serveur au lieu d'appeler directement les services
+async function callServerApi(data: any): Promise<any> {
+  try {
+    const response = await fetch(`/api/deepseek`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Erreur inconnue";
+    console.error(`Erreur API DeepSeek:`, errorMsg);
+    throw new Error(`Échec de la génération de contenu`);
   }
-
-  return new OpenAI({
-    apiKey,
-    baseURL: "https://api.deepseek.com/v1",
-    defaultHeaders: {
-      'Content-Type': 'application/json',
-    },
-    defaultQuery: {
-      'api-version': '2024-02',
-    },
-  });
-};
+}
 
 export async function generateDeepSeekResponse(
   message: string,
@@ -51,37 +45,27 @@ export async function generateDeepSeekResponse(
 ) {
   // Vérifier que c'est un modèle DeepSeek
   if (!modelId.startsWith('deepseek')) {
-    throw new Error(`Invalid DeepSeek model: ${modelId}`);
+    throw new Error(`Modèle DeepSeek invalide : ${modelId}`);
   }
 
   // Récupérer la configuration du modèle
   const modelConfig = DEEPSEEK_MODELS[modelId as keyof typeof DEEPSEEK_MODELS];
   if (!modelConfig) {
-    throw new Error(`Model config not found for ${modelId}`);
+    throw new Error(`Configuration du modèle non trouvée pour ${modelId}`);
   }
 
-  // Alterner entre les deux clés API pour la répartition de charge
-  const apiKey = Math.random() < 0.5 ? DEEPSEEK_API_KEYS.key1 : DEEPSEEK_API_KEYS.key2;
-  
-  const client = createDeepSeekClient(apiKey);
-
   try {
-    const completion = await client.chat.completions.create({
-      model: modelConfig.modelName,
-      messages: [
-        {
-          role: "user",
-          content: message
-        }
-      ],
-      max_tokens: maxTokens || modelConfig.maxTokens,
-      temperature: temperature,
-      stream: false
+    // Appeler l'API côté serveur
+    const result = await callServerApi({
+      message,
+      modelId,
+      maxTokens: maxTokens || modelConfig.maxTokens,
+      temperature
     });
 
-    return completion.choices[0].message.content;
+    return result.text;
   } catch (error) {
-    console.error("Error calling DeepSeek API:", error);
+    console.error("Erreur lors de l'appel à l'API DeepSeek:", error);
     throw error;
   }
 } 

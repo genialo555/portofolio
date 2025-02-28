@@ -1,27 +1,6 @@
-import OpenAI from "openai";
 import { AIModel } from "../types";
 
-// Log des variables d'environnement au chargement du module
-console.log("Chargement des variables d'environnement Qwen:", {
-  KEY_1: process.env.NEXT_PUBLIC_QWEN_API_KEY_1 ? "Défini" : "Non défini",
-  KEY_2: process.env.NEXT_PUBLIC_QWEN_API_KEY_2 ? "Défini" : "Non défini"
-});
-
-const QWEN_API_KEYS = {
-  "qwen-max": {
-    key1: process.env.NEXT_PUBLIC_QWEN_API_KEY_1 || "",
-    key2: process.env.NEXT_PUBLIC_QWEN_API_KEY_2 || ""
-  },
-  "qwen-plus": {
-    key1: process.env.NEXT_PUBLIC_QWEN_API_KEY_1 || "",
-    key2: process.env.NEXT_PUBLIC_QWEN_API_KEY_2 || ""
-  },
-  "qwen-turbo": {
-    key1: process.env.NEXT_PUBLIC_QWEN_API_KEY_1 || "",
-    key2: process.env.NEXT_PUBLIC_QWEN_API_KEY_2 || ""
-  }
-};
-
+// Configuration des modèles Qwen
 const QWEN_MODELS = {
   "qwen-max": {
     modelName: "qwen-max",
@@ -37,17 +16,28 @@ const QWEN_MODELS = {
   }
 };
 
-const createQwenClient = (apiKey: string) => {
-  // Vérifier que la clé API est au format UUID attendu
-  if (!apiKey.match(/^517-[a-f0-9]{16}-[1-8]$/)) {
-    throw new Error("Invalid Qwen API key format");
+// Utiliser une API côté serveur au lieu d'appeler directement les services
+async function callServerApi(data: any): Promise<any> {
+  try {
+    const response = await fetch(`/api/qwen`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Erreur inconnue";
+    console.error(`Erreur API Qwen:`, errorMsg);
+    throw new Error(`Échec de la génération de contenu`);
   }
-
-  return new OpenAI({
-    apiKey,
-    baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-  });
-};
+}
 
 export async function generateQwenResponse(
   message: string,
@@ -57,37 +47,27 @@ export async function generateQwenResponse(
 ) {
   // Vérifier que c'est un modèle Qwen
   if (!modelId.startsWith('qwen-')) {
-    throw new Error(`Invalid Qwen model: ${modelId}`);
+    throw new Error(`Modèle Qwen invalide : ${modelId}`);
   }
 
   // Récupérer la configuration du modèle
   const modelConfig = QWEN_MODELS[modelId as keyof typeof QWEN_MODELS];
   if (!modelConfig) {
-    throw new Error(`Model config not found for ${modelId}`);
+    throw new Error(`Configuration du modèle non trouvée pour ${modelId}`);
   }
 
-  // Alterner entre les deux clés API pour la répartition de charge
-  const keys = QWEN_API_KEYS[modelId as keyof typeof QWEN_API_KEYS];
-  const apiKey = Math.random() < 0.5 ? keys.key1 : keys.key2;
-  
-  const client = createQwenClient(apiKey);
-
   try {
-    const completion = await client.chat.completions.create({
-      model: modelConfig.modelName,
-      messages: [
-        {
-          role: "user",
-          content: message
-        }
-      ],
-      max_tokens: maxTokens || modelConfig.maxTokens,
-      temperature: temperature
+    // Appeler l'API côté serveur
+    const result = await callServerApi({
+      message,
+      modelId,
+      maxTokens: maxTokens || modelConfig.maxTokens,
+      temperature
     });
 
-    return completion.choices[0].message.content;
+    return result.text;
   } catch (error) {
-    console.error("Error calling Qwen API:", error);
+    console.error("Erreur lors de l'appel à l'API Qwen:", error);
     throw error;
   }
 } 
