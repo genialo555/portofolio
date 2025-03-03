@@ -1,14 +1,24 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { LOGGER_TOKEN } from '../utils/logger-tokens';
-import { ILogger } from '../utils/logger-tokens';
+import { LOGGER_TOKEN, ILogger } from '../utils/logger-tokens';
 import { KagEngineService } from './kag-engine.service';
 import { RagEngineService } from './rag-engine.service';
 import { PromptsService, PromptTemplateType } from '../prompts/prompts.service';
 import { ApiProviderFactory } from '../apis/api-provider-factory.service';
-import { UserQuery, DebateInput, DebateResult, KagAnalysis, RagAnalysis, PoolType } from '../types';
+import { EventBusService, RagKagEventType } from '../core/event-bus.service';
+import { KnowledgeGraphService, KnowledgeSource, RelationType } from '../core/knowledge-graph.service';
+import { generateKagRagDebatePrompt } from '../../legacy/prompts/debate-prompts/kag-rag-debate';
+import { 
+  UserQuery, 
+  DebateResult, 
+  PoolOutputs, 
+  KagAnalysis,
+  RagAnalysis,
+  DebateInput
+} from '../types';
+import { DebateInput as LegacyDebateInput } from '../../legacy/types/prompt.types';
 
 /**
- * Service qui gère le débat entre les résultats KAG et RAG
+ * Service responsable de la conduite du débat entre RAG et KAG
  */
 @Injectable()
 export class DebateService {
@@ -17,228 +27,373 @@ export class DebateService {
     private readonly kagEngine: KagEngineService,
     private readonly ragEngine: RagEngineService,
     private readonly promptsService: PromptsService,
-    private readonly apiProviderFactory: ApiProviderFactory
-  ) {
-    this.logger.info('Service de débat initialisé');
-  }
-  
+    private readonly apiProviderFactory: ApiProviderFactory,
+    private readonly eventBus: EventBusService,
+    private readonly knowledgeGraph: KnowledgeGraphService
+  ) {}
+
   /**
-   * Génère une analyse KAG pour une requête utilisateur
+   * Génère un débat entre les approches RAG et KAG pour une requête
    * @param query Requête utilisateur
-   * @returns Analyse KAG
+   * @param options Options additionnelles
+   * @returns Résultat du débat structuré
    */
-  async generateKagAnalysis(query: UserQuery): Promise<KagAnalysis> {
-    this.logger.debug('Génération de l\'analyse KAG', { queryId: query.sessionId });
-    
-    try {
-      return this.kagEngine.analyzeQuery(query);
-    } catch (error) {
-      this.logger.error('Erreur lors de l\'analyse KAG', { error: error.message });
-      throw error;
-    }
-  }
-  
-  /**
-   * Génère une analyse RAG pour une requête utilisateur
-   * @param query Requête utilisateur
-   * @returns Analyse RAG
-   */
-  async generateRagAnalysis(query: UserQuery): Promise<RagAnalysis> {
-    this.logger.debug('Génération de l\'analyse RAG', { queryId: query.sessionId });
-    
-    try {
-      return this.ragEngine.retrieveAndAnalyze(query);
-    } catch (error) {
-      this.logger.error('Erreur lors de l\'analyse RAG', { error: error.message });
-      throw error;
-    }
-  }
-  
-  /**
-   * Facilite le débat entre les analyses KAG et RAG
-   * @param debateInput Données d'entrée pour le débat
-   * @returns Résultat du débat
-   */
-  async facilitateDebate(debateInput: DebateInput): Promise<DebateResult> {
-    const { query, kagAnalysis, ragAnalysis, poolOutputs } = debateInput;
+  async generateDebate(query: UserQuery, options: { 
+    includePoolOutputs?: boolean;
+    prioritizeSpeed?: boolean;
+    useLegacyPrompt?: boolean;
+  } = {}): Promise<DebateResult> {
     const startTime = Date.now();
+    const queryText = typeof query === 'string' ? query : query.text || query.content || '';
     
-    this.logger.info('Démarrage du débat dialectique', { 
-      queryId: query.sessionId 
+    this.logger.info(`Démarrage du débat pour la requête: "${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}"`, {
+      includePoolOutputs: options.includePoolOutputs,
+      prioritizeSpeed: options.prioritizeSpeed,
+      useLegacyPrompt: options.useLegacyPrompt
+    });
+    
+    // Émettre un événement de début de débat
+    this.eventBus.emit({
+      type: RagKagEventType.DEBATE_STARTED,
+      source: 'DebateService',
+      payload: { 
+        query: queryText,
+        options 
+      }
     });
     
     try {
-      // 1. Obtenir le prompt de débat
-      const debatePrompt = this.promptsService.getPromptTemplate(PromptTemplateType.KAG_RAG_DEBATE);
+      // 1. Génération de l'analyse KAG
+      this.logger.debug('Génération de l\'analyse KAG');
+      const kagAnalysis = await this.kagEngine.generateAnalysis(query);
       
-      // 2. Préparer le prompt complet
-      const fullPrompt = this.prepareFullDebatePrompt(debatePrompt, debateInput);
-      
-      // 3. Générer le débat via une API (simulé)
-      // Dans une implémentation réelle, on utiliserait un LLM spécifique pour ce rôle
-      const debateResponse = await this.apiProviderFactory.generateResponse(
-        'google', // Modèle choisi pour le débat
-        fullPrompt,
-        {
-          temperature: 0.7,
-          top_p: 0.92,
-          top_k: 60,
-          max_tokens: 2000
-        }
-      );
-      
-      // 4. Analyser la réponse (dans une implémentation réelle, on ferait un parsing plus sophistiqué)
-      const debateContent = debateResponse.text;
-      
-      // 5. Évaluer le consensus
-      const consensusLevel = this.evaluateConsensusLevel(debateContent);
-      
-      // 6. Analyser les thèmes identifiés
-      const identifiedThemes = this.extractThemes(debateContent);
-      
-      // 7. Calculer le temps de traitement
-      const processingTime = Date.now() - startTime;
-      
-      // 8. Convertir les clés du poolOutputs en PoolType si nécessaire
-      const poolsUsed = poolOutputs && this.convertPoolKeysToPoolTypes(
-        Object.keys(poolOutputs).filter(key => 
-          key !== 'errors' && 
-          key !== 'timestamp' && 
-          key !== 'query' && 
-          poolOutputs[key]?.length > 0
-        )
-      );
-      
-      // 9. Préparer le résultat
-      const result: DebateResult = {
-        content: debateContent,
-        hasConsensus: consensusLevel > 0.6,
-        consensusLevel,
-        identifiedThemes,
-        processingTime,
-        sourceMetrics: {
-          kagConfidence: kagAnalysis.confidenceScore || this.mapConfidenceLevelToScore(kagAnalysis.confidence),
-          ragConfidence: ragAnalysis.confidenceScore || this.mapConfidenceLevelToScore(ragAnalysis.confidence),
-          poolsUsed: poolsUsed || [],
-          sourcesUsed: ragAnalysis.sourcesUsed || ragAnalysis.sources || []
-        },
-        debateTimestamp: new Date()
+      // 2. Génération de l'analyse RAG
+      this.logger.debug('Génération de l\'analyse RAG');
+      const ragAnalysis = await this.ragEngine.generateAnalysis(query);
+
+      // 3. Création de l'input pour le débat
+      const debateInput: DebateInput = {
+        query,
+        kagAnalysis,
+        ragAnalysis,
+        poolOutputs: options.includePoolOutputs ? {
+          commercial: [],
+          marketing: [],
+          sectoriel: [],
+          educational: []
+        } : undefined
       };
       
-      this.logger.info('Débat terminé avec succès', { 
-        consensusLevel,
-        themeCount: identifiedThemes.length,
-        processingTime
+      // 4. Exécution du débat
+      const debateResult = await this.conductDebate(debateInput, options);
+      
+      // 5. Stocker les résultats dans le graphe de connaissances
+      this.storeDebateInGraph(queryText, debateResult, ragAnalysis, kagAnalysis);
+      
+      // 6. Émettre un événement de fin de débat
+      this.eventBus.emit({
+        type: RagKagEventType.DEBATE_COMPLETED,
+        source: 'DebateService',
+        payload: {
+          query: queryText,
+          duration: Date.now() - startTime,
+          consensusLevel: debateResult.hasConsensus ? 'HIGH' : 'LOW',
+          sourceMetrics: debateResult.sourceMetrics
+        }
       });
       
-      return result;
-      
+      return debateResult;
     } catch (error) {
-      this.logger.error('Erreur lors du débat', { error: error.message });
+      this.logger.error(`Erreur pendant le débat: ${error.message}`, {
+        error,
+        query: queryText
+      });
       
-      // Retourner un résultat minimal en cas d'erreur
+      this.eventBus.emit({
+        type: RagKagEventType.QUERY_ERROR,
+        source: 'DebateService',
+        payload: {
+          error,
+          query: queryText
+        }
+      });
+      
+      // Retourner un résultat d'erreur
       return {
-        content: `Erreur lors du débat: ${error.message}`,
+        content: "Une erreur est survenue pendant le débat d'analyse.",
         hasConsensus: false,
-        consensusLevel: 0,
         identifiedThemes: [],
         processingTime: Date.now() - startTime,
         sourceMetrics: {
-          kagConfidence: kagAnalysis?.confidenceScore || this.mapConfidenceLevelToScore(kagAnalysis?.confidence),
-          ragConfidence: ragAnalysis?.confidenceScore || this.mapConfidenceLevelToScore(ragAnalysis?.confidence),
-          poolsUsed: []
+          poolsUsed: [],
         },
-        debateTimestamp: new Date(),
         error: error.message
       };
     }
   }
   
   /**
-   * Convertit les clés de pool en types de pool
-   * @param keys Clés de pool (strings)
-   * @returns Types de pool typés
+   * Exécute le débat entre les analyses RAG et KAG
+   * @param input Entrée du débat
+   * @param options Options supplémentaires
+   * @returns Résultat du débat
    */
-  private convertPoolKeysToPoolTypes(keys: string[]): PoolType[] {
-    return keys.map(key => {
-      switch (key.toUpperCase()) {
-        case 'COMMERCIAL': return PoolType.COMMERCIAL;
-        case 'MARKETING': return PoolType.MARKETING;
-        case 'SECTORIEL': return PoolType.SECTORIEL;
-        default: return null;
-      }
-    }).filter(Boolean) as PoolType[];
+  private async conductDebate(
+    input: DebateInput, 
+    options: { useLegacyPrompt?: boolean } = {}
+  ): Promise<DebateResult> {
+    const startDebateTime = Date.now();
+    
+    // Extraction des analyses
+    const { query, ragAnalysis, kagAnalysis } = input;
+    const queryText = typeof query === 'string' ? query : query.text;
+    
+    this.logger.debug('Préparation du débat entre analyses RAG et KAG', {
+      ragConfidence: ragAnalysis.confidenceScore,
+      kagConfidence: kagAnalysis.confidenceScore,
+      useLegacyPrompt: options.useLegacyPrompt
+    });
+    
+    // Choix du prompt: legacy ou standard
+    let debatePrompt: string;
+    
+    if (options.useLegacyPrompt) {
+      // Préparer le prompt legacy avancé
+      const legacyDebateInput: LegacyDebateInput = {
+        kagAnalysis: kagAnalysis.content,
+        ragAnalysis: ragAnalysis.content,
+        query: queryText,
+        poolOutputs: input.poolOutputs || {}
+      };
+      
+      debatePrompt = generateKagRagDebatePrompt(legacyDebateInput);
+      this.logger.debug('Utilisation du prompt de débat legacy avancé');
+    } else {
+      // Utiliser le prompt standard
+      debatePrompt = this.promptsService.getPromptTemplate(PromptTemplateType.KAG_RAG_DEBATE);
+      debatePrompt = this.promptsService.fillTemplate(debatePrompt, {
+        query: queryText,
+        kagAnalysis: kagAnalysis.content,
+        ragAnalysis: ragAnalysis.content
+      });
+      this.logger.debug('Utilisation du prompt de débat standard');
+    }
+    
+    // Exécuter le débat avec le modèle approprié
+    const provider = this.apiProviderFactory.recommendProvider(undefined, {
+      prioritizeReliability: true
+    });
+    
+    const startGeneration = Date.now();
+    const response = await this.apiProviderFactory.generateResponse(provider, debatePrompt, {
+      temperature: 0.5,
+      max_tokens: 2000
+    });
+    
+    this.logger.debug('Génération du débat terminée', {
+      generationTime: Date.now() - startGeneration,
+      responseLength: response.text.length
+    });
+    
+    // Analyser la réponse pour extraire les informations pertinentes
+    const consensus = this.extractConsensusLevel(response.text);
+    const hasConsensus = consensus > 0.5;
+    const identifiedThemes = this.extractThemes(response.text);
+    const majorContradictions = this.detectMajorContradictions(response.text);
+    
+    // Construire le résultat du débat
+    const result: DebateResult = {
+      content: response.text,
+      hasConsensus: hasConsensus,
+      identifiedThemes: identifiedThemes,
+      processingTime: Date.now() - startDebateTime,
+      sourceMetrics: {
+        kagConfidence: kagAnalysis.confidenceScore,
+        ragConfidence: ragAnalysis.confidenceScore,
+        poolsUsed: [],
+        sourcesUsed: []
+      },
+      consensusLevel: consensus,
+      debateTimestamp: new Date()
+    };
+    
+    // Émettre un événement approprié
+    if (hasConsensus) {
+      this.eventBus.emit({
+        type: RagKagEventType.CONSENSUS_REACHED,
+        source: 'DebateService',
+        payload: {
+          consensusLevel: consensus,
+          identifiedThemes
+        }
+      });
+    } else if (majorContradictions) {
+      this.eventBus.emit({
+        type: RagKagEventType.CONTRADICTION_FOUND,
+        source: 'DebateService',
+        payload: {
+          contradictions: this.extractContradictions(response.text)
+        }
+      });
+    }
+    
+    return result;
   }
   
   /**
-   * Convertit un niveau de confiance typé en score numérique
-   * @param level Niveau de confiance 
-   * @returns Score de confiance (0-1)
+   * Extrait le niveau de consensus du texte du débat
+   * @param text Texte du débat
+   * @returns Niveau de consensus (0-10)
    */
-  private mapConfidenceLevelToScore(level: any): number {
-    if (!level) return 0;
-    
-    switch (level) {
-      case 'HIGH': return 0.9;
-      case 'MEDIUM': return 0.6;
-      case 'LOW': return 0.3;
-      default: return 0.5;
+  private extractConsensusLevel(text: string): number {
+    try {
+      const consensusMatch = text.match(/Niveau de consensus\s*:\s*(\d+)/i);
+      if (consensusMatch && consensusMatch[1]) {
+        const level = parseInt(consensusMatch[1], 10);
+        return isNaN(level) ? 5 : Math.min(Math.max(level, 0), 10);
+      }
+      return 5; // Valeur par défaut
+    } catch (error) {
+      this.logger.error(`Erreur lors de l'extraction du niveau de consensus: ${error.message}`);
+      return 5;
     }
   }
   
   /**
-   * Prépare le prompt complet pour le débat
-   * @param template Template de base
-   * @param input Données d'entrée
-   * @returns Prompt complet
-   */
-  private prepareFullDebatePrompt(template: string, input: DebateInput): string {
-    // Dans une implémentation réelle, on utiliserait un système de templating plus sophistiqué
-    
-    // Simulé - utiliser le remplacement de placeholder de PromptsService si disponible
-    return template
-      .replace('{{kagAnalysis}}', JSON.stringify(input.kagAnalysis))
-      .replace('{{ragAnalysis}}', JSON.stringify(input.ragAnalysis))
-      .replace('{{query}}', input.query.text)
-      .replace('{{poolOutputs}}', JSON.stringify(input.poolOutputs));
-  }
-  
-  /**
-   * Évalue le niveau de consensus dans le débat
-   * @param debateContent Contenu du débat
-   * @returns Niveau de consensus (0-1)
-   */
-  private evaluateConsensusLevel(debateContent: string): number {
-    // Dans une implémentation réelle, on utiliserait NLP pour analyser le texte
-    
-    // Approche simpliste: recherche de mots clés
-    const consensusTerms = ['accord', 'consensus', 'alignement', 'converge', 'similaire'];
-    const divergenceTerms = ['désaccord', 'divergence', 'conflit', 'oppose', 'contradiction'];
-    
-    const lowerContent = debateContent.toLowerCase();
-    
-    const consensusCount = consensusTerms.filter(term => lowerContent.includes(term)).length;
-    const divergenceCount = divergenceTerms.filter(term => lowerContent.includes(term)).length;
-    
-    // Calculer un score approximatif
-    if (consensusCount === 0 && divergenceCount === 0) return 0.5; // Neutre
-    
-    return consensusCount / (consensusCount + divergenceCount);
-  }
-  
-  /**
-   * Extrait les thèmes identifiés dans le débat
-   * @param debateContent Contenu du débat
+   * Extrait les thèmes identifiés du texte du débat
+   * @param text Texte du débat
    * @returns Liste des thèmes
    */
-  private extractThemes(debateContent: string): string[] {
-    // Dans une implémentation réelle, on utiliserait des techniques d'extraction de thèmes NLP
+  private extractThemes(text: string): string[] {
+    try {
+      const themesMatch = text.match(/Thèmes identifiés\s*:\s*\[(.*?)\]/is);
+      if (themesMatch && themesMatch[1]) {
+        return themesMatch[1]
+          .split(',')
+          .map(theme => theme.trim())
+          .filter(theme => theme.length > 0);
+      }
+      return [];
+    } catch (error) {
+      this.logger.error(`Erreur lors de l'extraction des thèmes: ${error.message}`);
+      return [];
+    }
+  }
+  
+  /**
+   * Détecte s'il y a des contradictions majeures dans le débat
+   * @param text Texte du débat
+   * @returns Vrai si des contradictions majeures sont détectées
+   */
+  private detectMajorContradictions(text: string): boolean {
+    const contradictionSection = text.match(/Contradictions\s*:\s*\[(.*?)\]/is);
+    if (!contradictionSection || !contradictionSection[1]) {
+      return false;
+    }
     
-    // Simulation simpliste
-    return [
-      'Données commerciales',
-      'Stratégie marketing',
-      'Tendances sectorielles'
-    ];
+    const contradictions = contradictionSection[1].trim();
+    
+    // Si la section des contradictions contient des termes significatifs
+    const significantTerms = ['majeur', 'important', 'fondamental', 'significatif', 'critique'];
+    return significantTerms.some(term => contradictions.toLowerCase().includes(term)) && 
+           contradictions.length > 50;
+  }
+  
+  /**
+   * Extrait les contradictions du texte du débat
+   * @param text Texte du débat
+   * @returns Liste des contradictions
+   */
+  private extractContradictions(text: string): string[] {
+    try {
+      const contradictionsMatch = text.match(/Contradictions\s*:\s*\[(.*?)\]/is);
+      if (contradictionsMatch && contradictionsMatch[1]) {
+        return contradictionsMatch[1]
+          .split(',')
+          .map(contradiction => contradiction.trim())
+          .filter(contradiction => contradiction.length > 0);
+      }
+      return [];
+    } catch (error) {
+      this.logger.error(`Erreur lors de l'extraction des contradictions: ${error.message}`);
+      return [];
+    }
+  }
+  
+  /**
+   * Stocke le résultat du débat dans le graphe de connaissances
+   * @param query Requête originale
+   * @param debate Résultat du débat
+   * @param ragAnalysis Analyse RAG
+   * @param kagAnalysis Analyse KAG
+   */
+  private storeDebateInGraph(
+    query: string, 
+    debate: DebateResult,
+    ragAnalysis: RagAnalysis,
+    kagAnalysis: KagAnalysis
+  ): void {
+    try {
+      // Créer un nœud pour le débat
+      const debateNodeId = this.knowledgeGraph.addNode({
+        label: `Debate: ${query.substring(0, 30)}${query.length > 30 ? '...' : ''}`,
+        type: 'DEBATE_RESULT',
+        content: debate.content,
+        confidence: (debate.consensusLevel || 5) / 10,
+        source: KnowledgeSource.INFERENCE
+      });
+      
+      // Rechercher les nœuds des analyses
+      const searchResults = this.knowledgeGraph.search(query, {
+        nodeTypes: ['RAG_ANALYSIS', 'KAG_ANALYSIS', 'QUERY'],
+        maxResults: 10,
+        maxDepth: 0
+      });
+      
+      // Lier le débat aux analyses et à la requête
+      const linkToNode = (nodeType: string, relationType: string) => {
+        const node = searchResults.nodes.find(n => n.type === nodeType);
+        if (node) {
+          this.knowledgeGraph.addFact(
+            debateNodeId,
+            relationType,
+            node.id,
+            0.9,
+            { bidirectional: true, weight: 0.8 }
+          );
+        }
+      };
+      
+      linkToNode('RAG_ANALYSIS', 'USES_RAG_ANALYSIS');
+      linkToNode('KAG_ANALYSIS', 'USES_KAG_ANALYSIS');
+      linkToNode('QUERY', 'ANSWERS_QUERY');
+      
+      // Ajouter les thèmes comme nœuds
+      for (const theme of debate.identifiedThemes) {
+        this.knowledgeGraph.addFact(
+          debateNodeId,
+          'HAS_THEME',
+          {
+            label: theme,
+            type: 'THEME',
+            content: theme,
+            confidence: 0.8,
+            source: KnowledgeSource.INFERENCE
+          },
+          0.8,
+          { bidirectional: false, weight: 0.7 }
+        );
+      }
+      
+      this.logger.debug(`Débat stocké dans le graphe de connaissances`, {
+        debateId: debateNodeId,
+        consensus: debate.consensusLevel,
+        themes: debate.identifiedThemes.length
+      });
+    } catch (error) {
+      this.logger.error(`Erreur lors du stockage du débat dans le graphe: ${error.message}`, {
+        error: error.stack
+      });
+    }
   }
 } 

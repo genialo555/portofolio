@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { LOGGER_TOKEN, ILogger } from '../utils/logger-tokens';
-import { PoolOutputs, AgentOutput } from '../types';
+import { PoolOutputs } from '../../types';
+import { AgentOutput } from '../types';
 import { AnomalyDetectionService, DetectAnomalies, AnomalyDetectionLevel } from '../../utils/anomaly-detection.service';
 
 /**
@@ -62,6 +63,7 @@ export class OutputCollectorService {
       commercial: poolOutputs.commercial || [],
       marketing: poolOutputs.marketing || [],
       sectoriel: poolOutputs.sectoriel || [],
+      educational: poolOutputs.educational || [],
       timestamp: new Date(),
       query: poolOutputs.query
     };

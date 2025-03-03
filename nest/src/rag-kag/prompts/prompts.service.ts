@@ -1,5 +1,11 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { LOGGER_TOKEN, ILogger } from '../utils/logger-tokens';
+import { generateCommercialPrompt } from '../../legacy/prompts/base-prompts/commercial';
+import { generateMarketingPrompt } from '../../legacy/prompts/base-prompts/marketing';
+import { generateSectorielPrompt } from '../../legacy/prompts/base-prompts/sectoriel';
+import { generateEducationalPrompt } from '../../legacy/prompts/base-prompts/educational';
+import { AgentType, ApiProvider } from '../../legacy/types/agent.types';
+import { AgentConfig } from '../../legacy/config/poolConfig';
 
 /**
  * Types de templates de prompts disponibles
@@ -15,6 +21,7 @@ export enum PromptTemplateType {
   COMMERCIAL_AGENT = 'commercial_agent',
   MARKETING_AGENT = 'marketing_agent',
   SECTORIAL_AGENT = 'sectorial_agent',
+  EDUCATIONAL_AGENT = 'educational_agent',
   
   // Templates pour la synthèse et suivi
   SYNTHESIS = 'synthesis',
@@ -36,6 +43,24 @@ export interface PromptTemplate {
 export class PromptsService {
   private readonly logger: ILogger;
   private readonly templates: Map<PromptTemplateType, string> = new Map();
+  
+  // Configuration mock pour les agents legacy
+  private readonly mockAgentConfig: AgentConfig = {
+    id: 'mock-agent-id', 
+    name: 'MockAgent',
+    type: AgentType.COMMERCIAL,
+    api: ApiProvider.HOUSE_MODEL,
+    parameters: {
+      temperature: 0.7,
+      top_p: 0.9,
+      top_k: 40,
+      max_tokens: 1000,
+      context_window: 8000,
+      presence_penalty: 0.1,
+      frequency_penalty: 0.1
+    },
+    description: 'Agent de mock pour la compatibilité avec l\'ancienne architecture'
+  };
 
   constructor(
     @Inject(LOGGER_TOKEN) logger: ILogger
@@ -47,7 +72,7 @@ export class PromptsService {
 
   /**
    * Charge les templates de prompts
-   * Dans une implémentation réelle, ces templates seraient chargés depuis des fichiers
+   * Intègre les templates legacy lorsque c'est pertinent
    */
   private loadPromptTemplates(): void {
     this.logger.debug('Chargement des templates de prompts');
@@ -95,108 +120,99 @@ export class PromptsService {
       Comparez ces analyses, identifiez les points de convergence et de divergence, et formulez une synthèse qui intègre les perspectives les plus pertinentes.`
     );
 
-    // Template pour l'agent commercial
+    // Pour l'agent commercial, utiliser un template dynamique basé sur le template legacy
     this.templates.set(
       PromptTemplateType.COMMERCIAL_AGENT,
-      `En tant qu'expert commercial, analysez la requête suivante: "{{query}}".
-      
-      Concentrez-vous sur:
-      - Les opportunités de vente et de revenus
-      - Les stratégies commerciales pertinentes
-      - L'analyse de la concurrence et du positionnement
-      - Les modèles de tarification et propositions de valeur
-      
-      Fournissez une analyse concise et orientée résultats.`
+      `Template de base pour l'agent commercial. Sera remplacé par un template legacy.`
     );
 
-    // Template pour l'agent marketing
+    // Pour l'agent marketing, utiliser un template dynamique basé sur le template legacy
     this.templates.set(
       PromptTemplateType.MARKETING_AGENT,
-      `En tant qu'expert marketing, analysez la requête suivante: "{{query}}".
-      
-      Concentrez-vous sur:
-      - Le positionnement de marque et la communication
-      - Les segments de clientèle et personas
-      - Les canaux marketing à privilégier
-      - Les messages clés et la proposition de valeur
-      
-      Fournissez une analyse concise et orientée résultats.`
+      `Template de base pour l'agent marketing. Sera remplacé par un template legacy.`
     );
 
-    // Template pour l'agent sectoriel
+    // Pour l'agent sectoriel, utiliser un template dynamique basé sur le template legacy
     this.templates.set(
       PromptTemplateType.SECTORIAL_AGENT,
-      `En tant qu'expert sectoriel, analysez la requête suivante: "{{query}}".
-      
-      Concentrez-vous sur:
-      - Les tendances et évolutions du secteur
-      - La réglementation et conformité spécifiques
-      - Les meilleures pratiques observées chez les leaders
-      - Les enjeux d'innovation et de transformation
-      
-      Fournissez une analyse concise et orientée résultats.`
+      `Template de base pour l'agent sectoriel. Sera remplacé par un template legacy.`
+    );
+    
+    // Pour l'agent éducatif, utiliser un template dynamique basé sur le template legacy
+    this.templates.set(
+      PromptTemplateType.EDUCATIONAL_AGENT,
+      `Template de base pour l'agent éducatif. Sera remplacé par un template legacy.`
     );
 
     // Template pour la synthèse
     this.templates.set(
       PromptTemplateType.SYNTHESIS,
-      `Rédigez une réponse finale à la requête: "{{query}}" basée sur le résultat du débat suivant:
+      `Basé sur les résultats du débat et les points d'accord identifiés, synthétisez une réponse complète et pertinente à la requête: "{{query}}".
       
-      {{debateResult}}
+      Points d'accord:
+      {{agreements}}
       
-      Niveau d'expertise cible: {{expertiseLevel}}
-      Adaptez le niveau de détail et le vocabulaire en conséquence.`
+      Adaptez le niveau technique de la réponse pour un niveau d'expertise: {{expertiseLevel}}`
     );
 
     // Template pour les suggestions de suivi
     this.templates.set(
       PromptTemplateType.FOLLOWUP_SUGGESTIONS,
-      `Générez 3 questions de suivi pertinentes pour approfondir la discussion sur: "{{query}}"
-      
-      Thèmes identifiés: {{themes}}
-      
-      Les questions doivent être ouvertes et encourager l'exploration de nouveaux aspects du sujet.`
+      `Basé sur la requête "{{query}}" et la réponse fournie, suggérez 3 questions de suivi pertinentes que l'utilisateur pourrait poser pour approfondir sa compréhension.`
     );
 
-    this.logger.info('Templates de prompts chargés avec succès', {
-      count: this.templates.size
-    });
+    this.logger.info('Templates de prompts chargés avec succès', { count: this.templates.size });
   }
 
   /**
-   * Récupère un template de prompt par son type
-   * @param type Type de template
-   * @returns Template de prompt
+   * Récupère un template de prompt
    */
   getPromptTemplate(type: PromptTemplateType): string {
-    const template = this.templates.get(type);
-    
-    if (!template) {
+    if (!this.templates.has(type)) {
       this.logger.warn(`Template de prompt non trouvé: ${type}`);
-      throw new Error(`Template de prompt non trouvé: ${type}`);
+      return '';
     }
+    return this.templates.get(type) || '';
+  }
+  
+  /**
+   * Récupère un template spécifique pour un agent, en utilisant les templates legacy
+   * @param type Type d'agent
+   * @param agentId ID de l'agent (optionnel)
+   * @param query Requête de l'utilisateur
+   */
+  getAgentPrompt(type: PromptTemplateType, query: string, agentId: string = 'default'): string {
+    // Configuration de l'agent adaptée pour les fonctions legacy
+    const adaptedConfig = { 
+      ...this.mockAgentConfig,
+      id: agentId
+    };
     
-    this.logger.debug(`Template récupéré: ${type.substring(0, 15)}...`);
-    return template;
+    switch (type) {
+      case PromptTemplateType.COMMERCIAL_AGENT:
+        return generateCommercialPrompt(adaptedConfig, query);
+      case PromptTemplateType.MARKETING_AGENT:
+        return generateMarketingPrompt(adaptedConfig, query);
+      case PromptTemplateType.SECTORIAL_AGENT:
+        return generateSectorielPrompt(adaptedConfig, query);
+      case PromptTemplateType.EDUCATIONAL_AGENT:
+        return generateEducationalPrompt(adaptedConfig, query);
+      default:
+        // Fallback au template standard
+        const template = this.getPromptTemplate(type);
+        return this.fillTemplate(template, { query });
+    }
   }
 
   /**
-   * Remplit un template avec les valeurs données
-   * @param template Template à remplir
-   * @param values Valeurs à injecter
-   * @returns Template complété
+   * Remplit un template avec des valeurs
    */
   fillTemplate(template: string, values: Record<string, any>): string {
     let filledTemplate = template;
-    
     for (const [key, value] of Object.entries(values)) {
       const placeholder = `{{${key}}}`;
-      filledTemplate = filledTemplate.replace(
-        new RegExp(placeholder, 'g'), 
-        String(value)
-      );
+      filledTemplate = filledTemplate.replace(new RegExp(placeholder, 'g'), String(value));
     }
-    
     return filledTemplate;
   }
 } 

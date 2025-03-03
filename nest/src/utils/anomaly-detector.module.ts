@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
-import { AnomalyDetectorService } from './anomalyDetector';
+import { Module, Global } from '@nestjs/common';
+import { AnomalyDetectorService } from '../legacy/utils/anomalyDetector';
 import { AnomalyDetectionService } from './anomaly-detection.service';
 
 /**

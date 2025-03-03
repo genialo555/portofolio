@@ -2,6 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { LOGGER_TOKEN, ILogger } from '../utils/logger-tokens';
 import { ApiProviderFactory } from '../apis/api-provider-factory.service';
 import { AgentResult, PoolType, ApiType } from '../types/index';
+import { AgentResponse } from '../../types/agent.types';
 
 /**
  * Interface pour la définition d'un agent
@@ -208,5 +209,78 @@ export class AgentFactoryService {
         error: error.message || 'Erreur inconnue lors de l\'exécution de l\'agent'
       };
     }
+  }
+
+  /**
+   * Crée un agent à partir de son ID
+   * @param params Paramètres pour la création de l'agent
+   * @returns Un agent prêt à traiter des requêtes
+   */
+  async createAgent(params: {
+    id: string;
+    poolType: PoolType;
+    api: ApiType;
+  }): Promise<{
+    processQuery: (query: string) => Promise<AgentResponse>;
+  }> {
+    const { id, poolType, api } = params;
+    this.logger.debug('Création d\'un agent', { id, poolType, api });
+    
+    // Dans une implémentation réelle, on récupérerait la configuration de l'agent depuis une source
+    // et on construirait l'agent en fonction de ses spécificités
+    
+    return {
+      processQuery: async (query: string): Promise<AgentResponse> => {
+        const startTime = Date.now();
+        
+        try {
+          // Récupérer la configuration de l'agent depuis le catalogue
+          const agentConfig = this.agentCatalog.find(a => a.id === id);
+          
+          if (!agentConfig) {
+            throw new Error(`Agent non trouvé: ${id}`);
+          }
+          
+          // Préparer le prompt
+          const prompt = agentConfig.promptTemplate.replace('{{query}}', query);
+          
+          // Appeler le service d'API approprié
+          const response = await this.apiProviderFactory.generateResponse(
+            api,
+            prompt,
+            agentConfig.parameters
+          );
+          
+          const processingTime = Date.now() - startTime;
+          
+          // Construire la réponse
+          return {
+            agentId: id,
+            content: response.response || response.content,
+            confidence: 0.8, // Valeur par défaut ou calculée selon la réponse
+            metadata: {
+              processingTime,
+              tokenCount: response.usage?.totalTokens || 0,
+              modelUsed: response.modelUsed || api,
+              poolType
+            }
+          };
+        } catch (error) {
+          this.logger.error('Erreur lors du traitement de la requête par l\'agent', { id, error });
+          
+          // Retourner une réponse d'erreur
+          return {
+            agentId: id,
+            content: 'Une erreur est survenue lors du traitement de la requête.',
+            confidence: 0,
+            metadata: {
+              processingTime: Date.now() - startTime,
+              tokenCount: 0,
+              error: error.message
+            }
+          };
+        }
+      }
+    };
   }
 } 

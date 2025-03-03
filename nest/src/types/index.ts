@@ -31,12 +31,13 @@ export interface FinalResponse {
 }
 
 // Types pour les pools d'agents
-export type PoolType = 'COMMERCIAL' | 'MARKETING' | 'SECTORIEL';
+export type PoolType = 'COMMERCIAL' | 'MARKETING' | 'SECTORIEL' | 'EDUCATIONAL';
 
 export interface TargetPools {
   commercial: boolean;
   marketing: boolean;
   sectoriel: boolean;
+  educational: boolean;
   primaryFocus?: PoolType;
 }
 
@@ -71,9 +72,11 @@ export interface AgentOutput {
 }
 
 export interface PoolOutputs {
-  commercial?: AgentOutput[];
-  marketing?: AgentOutput[];
-  sectoriel?: AgentOutput[];
+  commercial: any[];
+  marketing: any[];
+  sectoriel: any[];
+  educational: any[];
+  errors?: string[];
   timestamp?: Date;
   query?: UserQuery;
 }
@@ -423,7 +426,9 @@ export interface SynthesisResult {
   metadata: Record<string, any>;
 }
 
+// Export legacy types for compatibility
+export * from '../legacy/types/prompt.types';
+
 // Exports
 export * from './agent.types';
-export * from './prompt.types';
 // export * from './response.types'; 

@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import { LOGGER_TOKEN, ILogger } from '../utils/logger-tokens';
 import { PromptsService, PromptTemplateType } from '../prompts/prompts.service';
 import { ApiProviderFactory } from '../apis/api-provider-factory.service';
@@ -10,6 +10,8 @@ import {
   ExpertiseLevel,
   ConfidenceLevel
 } from '../types';
+import { EventBusService, RagKagEventType } from '../core/event-bus.service';
+import { KnowledgeGraphService, KnowledgeSource } from '../core/knowledge-graph.service';
 
 /**
  * Options pour la synthèse
@@ -18,10 +20,12 @@ export interface SynthesisOptions {
   expertiseLevel: ExpertiseLevel; 
   includeSuggestions: boolean;
   maxLength?: number;
+  storeInGraph?: boolean;
 }
 
 /**
  * Service responsable de la génération des réponses finales
+ * Intégré avec EventBus et KnowledgeGraph
  */
 @Injectable()
 export class SynthesisService {
@@ -29,13 +33,16 @@ export class SynthesisService {
   private readonly defaultOptions: SynthesisOptions = {
     expertiseLevel: 'INTERMEDIATE',
     includeSuggestions: true,
-    maxLength: 1500
+    maxLength: 1500,
+    storeInGraph: true
   };
 
   constructor(
     @Inject(LOGGER_TOKEN) logger: ILogger,
     private readonly promptsService: PromptsService,
-    private readonly apiProviderFactory: ApiProviderFactory
+    private readonly apiProviderFactory: ApiProviderFactory,
+    @Optional() private readonly eventBus?: EventBusService,
+    @Optional() private readonly knowledgeGraph?: KnowledgeGraphService
   ) {
     this.logger = logger;
     this.logger.info('Service de synthèse initialisé');
@@ -55,12 +62,26 @@ export class SynthesisService {
   ): Promise<FinalResponse> {
     const startTime = Date.now();
     const mergedOptions = { ...this.defaultOptions, ...options };
+    const queryText = typeof query === 'string' ? query : (query.text || (query as any).content || '');
     
     this.logger.debug('Génération de la réponse finale', {
-      queryId: query.sessionId,
+      query: queryText.substring(0, 50),
       hasConsensus: debateResult.hasConsensus,
       expertiseLevel: mergedOptions.expertiseLevel
     });
+    
+    // Émettre un événement de début de synthèse
+    if (this.eventBus) {
+      this.eventBus.emit({
+        type: RagKagEventType.SYNTHESIS_STARTED,
+        source: 'SynthesisService',
+        payload: { 
+          query: queryText,
+          expertiseLevel: mergedOptions.expertiseLevel,
+          hasConsensus: debateResult.hasConsensus
+        }
+      });
+    }
 
     try {
       // 1. Déterminer l'approche de génération
@@ -144,12 +165,45 @@ export class SynthesisService {
         suggestionsCount: suggestions.length
       });
       
+      // 9. Stocker dans le graphe de connaissances si demandé
+      if (mergedOptions.storeInGraph && this.knowledgeGraph) {
+        this.storeResponseInGraph(queryText, finalResponse, debateResult);
+      }
+      
+      // 10. Émettre un événement de fin de synthèse
+      if (this.eventBus) {
+        this.eventBus.emit({
+          type: RagKagEventType.SYNTHESIS_COMPLETED,
+          source: 'SynthesisService',
+          payload: { 
+            query: queryText,
+            processingTime,
+            contentLength: finalContent.length,
+            suggestionsCount: suggestions.length,
+            confidenceLevel
+          }
+        });
+      }
+      
       return finalResponse;
       
     } catch (error) {
       this.logger.error('Erreur lors de la génération de la réponse finale', {
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
+      
+      // Émettre un événement d'erreur
+      if (this.eventBus) {
+        this.eventBus.emit({
+          type: RagKagEventType.SYNTHESIS_ERROR,
+          source: 'SynthesisService',
+          payload: { 
+            query: queryText,
+            error: error.message
+          }
+        });
+      }
       
       // Retourner une réponse minimale en cas d'erreur
       return {
@@ -368,5 +422,137 @@ export class SynthesisService {
     if (avgConfidence >= 0.8) return 'HIGH';
     if (avgConfidence >= 0.5) return 'MEDIUM';
     return 'LOW';
+  }
+
+  /**
+   * Stocke la réponse finale dans le graphe de connaissances
+   * @param queryText Texte de la requête
+   * @param response Réponse finale
+   * @param debateResult Résultat du débat
+   */
+  private storeResponseInGraph(
+    queryText: string,
+    response: FinalResponse,
+    debateResult: DebateResult
+  ): void {
+    if (!this.knowledgeGraph) return;
+    
+    try {
+      // Créer un nœud pour la réponse
+      const responseNodeId = this.knowledgeGraph.addNode({
+        label: `Response: ${queryText.substring(0, 30)}${queryText.length > 30 ? '...' : ''}`,
+        type: 'SYNTHESIS_RESPONSE',
+        content: response.content,
+        confidence: this.confidenceLevelToScore(response.metaData.confidenceLevel),
+        source: KnowledgeSource.INFERENCE,
+        metadata: {
+          expertiseLevel: response.metaData.expertiseLevel,
+          sourceTypes: response.metaData.sourceTypes,
+          processingTime: response.metaData.processingTime
+        }
+      });
+      
+      // Rechercher les nœuds existants
+      const searchResults = this.knowledgeGraph.search(queryText, {
+        nodeTypes: ['QUERY', 'DEBATE_RESULT'],
+        maxResults: 5,
+        maxDepth: 0
+      });
+      
+      // Lier la réponse à la requête si elle existe
+      for (const node of searchResults.nodes) {
+        if (node.type === 'QUERY') {
+          this.knowledgeGraph.addFact(
+            node.id,
+            'HAS_RESPONSE',
+            responseNodeId,
+            0.9,
+            {
+              bidirectional: true,
+              weight: 0.9
+            }
+          );
+        } else if (node.type === 'DEBATE_RESULT') {
+          this.knowledgeGraph.addFact(
+            node.id,
+            'GENERATED_RESPONSE',
+            responseNodeId,
+            0.9,
+            {
+              bidirectional: true,
+              weight: 0.8
+            }
+          );
+        }
+      }
+      
+      // Ajouter les thèmes comme nœuds
+      if (response.metaData.topicsIdentified && response.metaData.topicsIdentified.length > 0) {
+        for (const topic of response.metaData.topicsIdentified) {
+          this.knowledgeGraph.addFact(
+            responseNodeId,
+            'HAS_TOPIC',
+            {
+              label: topic,
+              type: 'TOPIC',
+              content: topic,
+              confidence: 0.8,
+              source: KnowledgeSource.INFERENCE
+            },
+            0.8,
+            {
+              bidirectional: false,
+              weight: 0.7
+            }
+          );
+        }
+      }
+      
+      // Ajouter les suggestions comme nœuds
+      if (response.suggestedFollowUp && response.suggestedFollowUp.length > 0) {
+        for (const suggestion of response.suggestedFollowUp) {
+          this.knowledgeGraph.addFact(
+            responseNodeId,
+            'SUGGESTS_FOLLOWUP',
+            {
+              label: `Suggestion: ${suggestion.substring(0, 30)}${suggestion.length > 30 ? '...' : ''}`,
+              type: 'FOLLOW_UP_SUGGESTION',
+              content: suggestion,
+              confidence: 0.7,
+              source: KnowledgeSource.INFERENCE
+            },
+            0.7,
+            {
+              bidirectional: false,
+              weight: 0.6
+            }
+          );
+        }
+      }
+      
+      this.logger.debug('Réponse stockée dans le graphe de connaissances', {
+        responseId: responseNodeId,
+        topics: response.metaData.topicsIdentified.length,
+        suggestions: response.suggestedFollowUp?.length || 0
+      });
+    } catch (error) {
+      this.logger.error(`Erreur lors du stockage de la réponse dans le graphe: ${error.message}`, {
+        error: error.stack
+      });
+    }
+  }
+  
+  /**
+   * Convertit un niveau de confiance en score numérique
+   * @param level Niveau de confiance
+   * @returns Score numérique (0-1)
+   */
+  private confidenceLevelToScore(level: ConfidenceLevel): number {
+    switch (level) {
+      case 'HIGH': return 0.9;
+      case 'MEDIUM': return 0.6;
+      case 'LOW': return 0.3;
+      default: return 0.5;
+    }
   }
 } 

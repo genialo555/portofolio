@@ -7,6 +7,7 @@ import { PoolManagerService } from './pools/pool-manager.service';
 import { CommercialPoolService } from './pools/commercial-pool.service';
 import { MarketingPoolService } from './pools/marketing-pool.service';
 import { SectorialPoolService } from './pools/sectorial-pool.service';
+import { EducationalPoolService } from './pools/educational-pool.service';
 import { DebateService } from './debate/debate.service';
 import { KagEngineService } from './debate/kag-engine.service';
 import { RagEngineService } from './debate/rag-engine.service';
@@ -18,8 +19,17 @@ import { ApiProviderFactory } from './apis/api-provider-factory.service';
 import { GoogleAiService } from './apis/google-ai.service';
 import { QwenAiService } from './apis/qwen-ai.service';
 import { DeepseekAiService } from './apis/deepseek-ai.service';
+import { HouseModelService } from './apis/house-model.service';
+import { ModelTrainingService } from './apis/model-training.service';
+import { ModelUtilsService } from './apis/model-utils.service';
+import { TokenizerService } from './apis/tokenizer.service';
+import { ModelEvaluationService } from './apis/model-evaluation.service';
+import { ResilienceService } from './utils/resilience.service';
 import { AgentFactoryService } from './agents/agent-factory.service';
 import { AnomalyDetectorModule } from '../utils/anomaly-detector.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { CoreModule } from './core/core.module';
+import { AutoTestService } from './testing/auto-test.service';
 
 /**
  * Module principal du système RAG/KAG
@@ -27,7 +37,9 @@ import { AnomalyDetectorModule } from '../utils/anomaly-detector.module';
 @Module({
   imports: [
     TypesModule,
-    AnomalyDetectorModule
+    AnomalyDetectorModule,
+    CoreModule, // Module pour les services de base (EventBus, KnowledgeGraph)
+    ScheduleModule.forRoot() // Pour les tâches périodiques
   ],
   controllers: [
     RagKagController
@@ -36,11 +48,19 @@ import { AnomalyDetectorModule } from '../utils/anomaly-detector.module';
     // Logger
     LoggerProvider,
     
+    // Résilience
+    ResilienceService,
+    
     // APIs
     ApiProviderFactory,
     GoogleAiService,
     QwenAiService,
     DeepseekAiService,
+    HouseModelService,
+    ModelTrainingService,
+    ModelUtilsService, // Service d'utilités pour les modèles TensorFlow
+    TokenizerService, // Service de tokenization
+    ModelEvaluationService, // Service d'évaluation de modèles
     
     // Agents
     AgentFactoryService,
@@ -55,6 +75,7 @@ import { AnomalyDetectorModule } from '../utils/anomaly-detector.module';
     CommercialPoolService,
     MarketingPoolService,
     SectorialPoolService,
+    EducationalPoolService,
     
     // Débat
     DebateService,
@@ -65,7 +86,8 @@ import { AnomalyDetectorModule } from '../utils/anomaly-detector.module';
     SynthesisService,
     
     // Prompts
-    PromptsService
+    PromptsService,
+    AutoTestService,
   ],
   exports: [
     OrchestratorService,
@@ -73,7 +95,15 @@ import { AnomalyDetectorModule } from '../utils/anomaly-detector.module';
     SynthesisService,
     PromptsService,
     ApiProviderFactory,
-    AgentFactoryService
+    AgentFactoryService,
+    HouseModelService,
+    ModelTrainingService,
+    EducationalPoolService,
+    ModelUtilsService,
+    TokenizerService,
+    ModelEvaluationService,
+    ResilienceService,
+    AutoTestService
   ]
 })
 export class RagKagModule {} 

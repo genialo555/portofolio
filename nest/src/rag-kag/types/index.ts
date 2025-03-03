@@ -4,6 +4,7 @@
 
 // Types essentiels - réimporté explicitement pour résoudre les erreurs de compilation
 import { UserQuery as ImportedUserQuery } from '../../types';
+import { AgentType } from '../../types/agent.types';
 export * from '../../types';
 
 /**
@@ -32,6 +33,7 @@ export enum PoolType {
   COMMERCIAL = 'COMMERCIAL',
   MARKETING = 'MARKETING',
   SECTORIEL = 'SECTORIEL',
+  EDUCATIONAL = 'EDUCATIONAL',
 }
 
 /**
@@ -41,6 +43,7 @@ export enum ApiType {
   GOOGLE_AI = 'GOOGLE_AI',
   QWEN_AI = 'QWEN_AI',
   DEEPSEEK_AI = 'DEEPSEEK_AI',
+  HOUSE_MODEL = 'HOUSE_MODEL',
 }
 
 /**
@@ -49,6 +52,13 @@ export enum ApiType {
 export interface UserQuery extends ImportedUserQuery {
   userType?: UserType;
   domainHints?: string[];
+  content: string;
+  preferences?: {
+    maxResponseTime?: number;
+    preferredAgentTypes?: AgentType[];
+    educationalLevel?: 'simple' | 'interactive' | 'advanced' | 'junior';
+    [key: string]: any;
+  };
 }
 
 /**
@@ -93,9 +103,10 @@ export interface PoolOutputs {
   commercial: any[];
   marketing: any[];
   sectoriel: any[];
+  educational: any[];
   errors?: string[];
   timestamp?: Date;
-  query?: UserQuery;
+  query?: UserQuery | { text: string; domainHints?: string[]; userType?: any; [key: string]: any };
 }
 
 /**
