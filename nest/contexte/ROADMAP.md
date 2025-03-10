@@ -130,6 +130,146 @@ Le système RAG/KAG est construit autour des composants principaux suivants :
 
 Un audit complet de l'architecture et de la qualité du code est en cours, en suivant l'arborescence complète du projet :
 
+## Défis critiques à résoudre
+
+Cette section identifie les problèmes critiques de l'architecture actuelle et propose un plan d'action pour les résoudre.
+
+### Problèmes techniques prioritaires
+
+| Problème | Impact | Complexité | Solution proposée | Échéance | Statut |
+|----------|:------:|:----------:|-------------------|:--------:|:------:|
+| **Boucle de rétroaction d'erreurs** | Élevé | Moyenne | Implémenter un système de vérification externe pour les connaissances avant stockage dans le graphe | T1 | À faire |
+| **Latence excessive** | Élevé | Élevée | Créer un système de décision pour n'activer le débat RAG/KAG que pour les requêtes complexes | T1 | **Implémenté** |
+| **Dépendances circulaires** | Moyen | Moyenne | Refactoriser les services avec pattern médiateur et interfaces claires | T1 | À faire |
+| **Croissance non contrôlée du graphe** | Moyen | Moyenne | Implémenter un système de nettoyage et consolidation périodique du graphe | T2 | À faire |
+| **Consommation mémoire des modèles** | Élevé | Élevée | Développer un gestionnaire de ressources avec déchargement dynamique des modèles | T2 | À faire |
+| **Propagation d'hallucinations** | Élevé | Élevée | Ajouter un système de vérification factuelle externe pour les connaissances critiques | T2 | À faire |
+| **Coût computationnel** | Moyen | Moyenne | Optimiser la sélection des agents et implémenter un système de cache sémantique | T3 | À faire |
+| **Dette technique hybride** | Moyen | Élevée | Planifier la migration complète vers NestJS avec timeline stricte | T3 | À faire |
+
+### Plan d'action détaillé
+
+#### Phase 1 (T1) : Stabilisation et optimisation critique
+
+1. **Système de vérification des connaissances**
+   ```typescript
+   // Exemple d'implémentation
+   class KnowledgeVerifier {
+     async verify(claim: string, confidence: number): Promise<VerificationResult> {
+       // Vérification par sources multiples
+       // Détection de contradictions avec connaissances existantes
+       // Validation par règles logiques
+     }
+   }
+   ```
+
+2. **Optimisation de la latence** ✅
+   - ✅ Implémenter un classificateur rapide de complexité des requêtes
+   - ✅ Créer un pipeline adaptatif qui active seulement les composants nécessaires
+   - ✅ Développer un système de cache intelligent pour les requêtes similaires
+
+   **Implementation**: Le `ComplexityAnalyzerService` utilise Phi-3-mini et un algorithme K-means pour classifier rapidement les requêtes en trois niveaux de complexité (simple, standard, complexe), déterminant ainsi le pipeline approprié:
+   - Requêtes simples: Traitement direct par un modèle local sans débat
+   - Requêtes standard: Utilisation de RAG ou KAG (mais pas les deux)
+   - Requêtes complexes: Pipeline complet avec débat RAG/KAG
+
+3. **Résolution des dépendances circulaires**
+   - Introduire un pattern médiateur central
+   - Définir des interfaces claires pour chaque service
+   - Utiliser des événements plutôt que des appels directs entre services
+
+#### Phase 2 (T2) : Gestion des ressources et fiabilité
+
+1. **Système de nettoyage du graphe de connaissances**
+   - Algorithme de détection des nœuds obsolètes ou redondants
+   - Consolidation périodique des connaissances similaires
+   - Stratégie de rétention basée sur l'utilité et la fraîcheur
+
+2. **Gestionnaire de ressources pour modèles**
+   ```typescript
+   class ModelResourceManager {
+     private activeModels: Map<string, { model: any, lastUsed: number }> = new Map();
+     
+     async getModel(modelName: string): Promise<any> {
+       // Logique de chargement/déchargement dynamique
+       // Priorisation basée sur l'usage récent et la mémoire disponible
+     }
+   }
+   ```
+
+3. **Système de vérification factuelle**
+   - Intégration avec des sources externes fiables
+   - Mécanisme de consensus entre sources multiples
+   - Marquage explicite du niveau de confiance des connaissances
+
+#### Phase 3 (T3) : Optimisation et modernisation
+
+1. **Optimisation computationnelle**
+   - Profilage détaillé de la consommation de ressources
+   - Parallélisation intelligente des tâches indépendantes
+   - Implémentation d'un cache sémantique à plusieurs niveaux
+
+2. **Plan de migration NestJS**
+   - Cartographie complète des dépendances legacy
+   - Réécriture progressive par domaine fonctionnel
+   - Tests A/B systématiques entre anciennes et nouvelles implémentations
+
+3. **Métriques et monitoring avancés**
+   - Dashboard temps réel de performance
+   - Alertes précoces sur anomalies de comportement
+   - Traçabilité complète des décisions du système
+
+### Métriques de succès
+
+| Métrique | Valeur actuelle | Objectif T1 | Objectif T2 | Objectif T3 |
+|----------|:--------------:|:-----------:|:-----------:|:-----------:|
+| Temps de réponse moyen | ~3000ms | <2000ms | <1000ms | <500ms |
+| Utilisation mémoire | ~4GB | <3GB | <2GB | <1.5GB |
+| Taux d'hallucinations | ~5% | <3% | <1% | <0.5% |
+| Dépendances circulaires | 12 | <8 | <4 | 0 |
+| Code legacy utilisé | 60% | <50% | <30% | <10% |
+| Coût par requête | ~$0.05 | <$0.04 | <$0.03 | <$0.02 |
+
+### Risques et mitigations
+
+| Risque | Probabilité | Impact | Stratégie de mitigation |
+|--------|:-----------:|:------:|-------------------------|
+| Complexité croissante pendant la transition | Élevée | Élevé | Freezer les fonctionnalités pendant la refactorisation |
+| Régression de performance | Moyenne | Élevé | Tests de performance automatisés pour chaque PR |
+| Perte de connaissances lors du nettoyage du graphe | Moyenne | Moyen | Système de sauvegarde et restauration granulaire |
+| Échec de la migration complète | Élevée | Moyen | Définir des jalons intermédiaires fonctionnels |
+| Dépassement des ressources matérielles | Moyenne | Élevé | Monitoring proactif et scaling horizontal |
+
+Cette roadmap sera révisée trimestriellement pour ajuster les priorités en fonction des progrès réalisés et des nouveaux défis identifiés.
+
+## Phase 4 (T4) - Migration vers l'appel direct des modèles Python 🆕
+- Créer une API Python (Flask) pour exposer les modèles
+  - Endpoints pour chaque fonctionnalité de modèle requise
+  - Validation des entrées et gestion des erreurs
+  - Tests unitaires pour l'API
+- Mettre à jour les services NestJS pour appeler l'API Python
+  - Remplacer les appels à TensorFlow.js par des requêtes HTTP
+  - Définir des interfaces TypeScript pour les entrées/sorties de l'API
+  - Gérer les erreurs et la validation des réponses
+- Adapter les tests NestJS pour couvrir les appels à l'API Python
+  - Tests unitaires pour les services modifiés
+  - Tests d'intégration couvrant le flux complet NestJS -> API Python -> modèles
+- Mettre à jour la configuration de déploiement
+  - Déployer l'API Python aux côtés de l'application NestJS
+  - Configurer la communication entre les deux (URL, ports, etc.)
+  - Adapter les scripts de build et de démarrage
+- Tester rigoureusement le nouveau workflow
+  - Tests manuels couvrant divers scénarios
+  - Surveiller les performances et la stabilité
+  - Comparer les résultats avec l'implémentation TensorFlow.js
+- Nettoyer le code legacy lié à TensorFlow.js
+  - Supprimer les dépendances inutiles
+  - Refactoriser pour améliorer la lisibilité et la maintenabilité
+- Documenter le nouveau workflow
+  - Mettre à jour la documentation d'architecture
+  - Écrire des guides pour le développement et le déploiement
+  - Ajouter des exemples de code illustrant les appels à l'API Python
+
 ```
 .
 ├── [ ] ROADMAP.md

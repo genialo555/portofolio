@@ -1,7 +1,7 @@
 import { Injectable, Inject, Optional } from '@nestjs/common';
 import { PoolOutputs, AnomalyReport, AnomalySeverity, Anomaly } from '../types';
 import { AnomalyDetectorService } from '../legacy/utils/anomalyDetector';
-import { Logger } from './logger';
+import { ILogger, LOGGER_TOKEN } from '../rag-kag/utils/logger-tokens';
 import { KnowledgeGraphService, KnowledgeSource, RelationType } from '../rag-kag/core/knowledge-graph.service';
 import { EventBusService, RagKagEventType } from '../rag-kag/core/event-bus.service';
 
@@ -47,7 +47,7 @@ export class CriticalAnomalyException extends Error {
  */
 @Injectable()
 export class AnomalyDetectionService {
-  private readonly logger: Logger;
+  private readonly logger: ILogger;
   private readonly defaultOptions: AnomalyDetectionOptions = {
     detectionLevel: AnomalyDetectionLevel.MEDIUM_AND_ABOVE,
     autoLog: true,
@@ -60,14 +60,11 @@ export class AnomalyDetectionService {
 
   constructor(
     private readonly detector: AnomalyDetectorService,
+    @Inject(LOGGER_TOKEN) logger: ILogger,
     @Optional() private readonly knowledgeGraph?: KnowledgeGraphService,
     @Optional() private readonly eventBus?: EventBusService
   ) {
-    this.logger = new Logger({
-      level: 3,
-      colorize: true,
-      timestamp: true
-    });
+    this.logger = logger;
     this.logger.info('Service de détection d\'anomalies initialisé');
   }
 

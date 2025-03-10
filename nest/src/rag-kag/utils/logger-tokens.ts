@@ -1,7 +1,7 @@
 import { Provider } from '@nestjs/common';
 
 /**
- * Interface pour le service de logging
+ * Interface pour le logger utilisé dans l'application
  */
 export interface ILogger {
   /**
@@ -17,6 +17,13 @@ export interface ILogger {
    * @param context Contexte optionnel (objet)
    */
   info(message: string, context?: Record<string, any>): void;
+  
+  /**
+   * Log un message (alias pour info)
+   * @param message Message à logger
+   * @param context Contexte optionnel (objet)
+   */
+  log(message: string, context?: Record<string, any>): void;
   
   /**
    * Log un message de niveau warning
@@ -49,6 +56,9 @@ export const LoggerProvider: Provider = {
     },
     info: (message: string, context?: Record<string, any>) => {
       console.log(`[INFO] ${message}`, context ? context : '');
+    },
+    log: (message: string, context?: Record<string, any>) => {
+      console.log(`[LOG] ${message}`, context ? context : '');
     },
     warn: (message: string, context?: Record<string, any>) => {
       console.warn(`[WARN] ${message}`, context ? context : '');

@@ -206,13 +206,13 @@ export class ModelEvaluationService implements OnModuleInit {
         
         // Appeler DeepSeek R1 pour obtenir une réponse de référence
         const teacherResponse = await this.houseModelService.generateResponse(prompt, {
-          modelName: 'deepseek-r1',
+          model: 'deepseek-r1',
           temperature: 0.7
         });
         
         dataset.push({
           prompt,
-          teacherResponse: teacherResponse.text
+          teacherResponse: teacherResponse.response
         });
         
         // Attendre un peu entre les générations pour éviter de surcharger l'API
@@ -402,23 +402,25 @@ export class ModelEvaluationService implements OnModuleInit {
     let totalSemantic = 0;
     let totalResponseTime = 0;
     
-    for (const { prompt, teacherResponse } of evaluationDataset) {
+    for (const sample of evaluationDataset) {
       try {
         const startTime = Date.now();
         
-        // Générer la réponse du modèle distillé
-        const modelResponse = await this.houseModelService.generateResponse(prompt, {
-          modelName,
-          temperature: 0.7
+        const teacherResponse = sample.teacherResponse;
+        
+        const modelResponse = await this.houseModelService.generateResponse(sample.prompt, {
+          temperature: 0.7,
+          maxTokens: 100,
+          model: modelName
         });
         
         const responseTime = Date.now() - startTime;
         totalResponseTime += responseTime;
         
         // Calculer les métriques
-        const bleu = this.calculateBleuScore(teacherResponse, modelResponse.text);
-        const rouge = this.calculateRougeScore(teacherResponse, modelResponse.text);
-        const semantic = this.calculateSemanticSimilarity(teacherResponse, modelResponse.text);
+        const bleu = this.calculateBleuScore(teacherResponse, modelResponse.response);
+        const rouge = this.calculateRougeScore(teacherResponse, modelResponse.response);
+        const semantic = this.calculateSemanticSimilarity(teacherResponse, modelResponse.response);
         
         totalBleu += bleu;
         totalRouge += rouge;
@@ -426,9 +428,9 @@ export class ModelEvaluationService implements OnModuleInit {
         
         // Ajouter l'échantillon aux résultats
         samples.push({
-          prompt,
+          prompt: sample.prompt,
           teacherResponse,
-          modelResponse: modelResponse.text,
+          modelResponse: modelResponse.response,
           metrics: {
             similarity: semantic,
             contentCoverage: (bleu + rouge) / 2
@@ -436,7 +438,7 @@ export class ModelEvaluationService implements OnModuleInit {
         });
         
         this.logger.info(`Évaluation de l'échantillon ${samples.length}/${evaluationDataset.length}`, {
-          prompt: prompt.substring(0, 30) + '...',
+          prompt: sample.prompt.substring(0, 30) + '...',
           bleu: bleu.toFixed(2),
           rouge: rouge.toFixed(2),
           semantic: semantic.toFixed(2)
@@ -462,7 +464,7 @@ export class ModelEvaluationService implements OnModuleInit {
           });
         }
       } catch (error) {
-        this.logger.error(`Erreur lors de l'évaluation de l'échantillon`, { error, prompt: prompt.substring(0, 30) + '...' });
+        this.logger.error(`Erreur lors de l'évaluation de l'échantillon`, { error, prompt: sample.prompt.substring(0, 30) + '...' });
         
         // Émettre un événement d'erreur
         if (this.eventBus) {
@@ -871,46 +873,16 @@ export class ModelEvaluationService implements OnModuleInit {
     };
   }
   
-  public async forceEvaluateModel(modelName: string) {
-    try {
-      const evaluation = await this.evaluateModel(modelName);
-      
-      // Stocker le résultat dans le graphe de connaissances
-      if (this.knowledgeGraph) {
-        await this.storeEvaluationInGraph(modelName, evaluation);
-      }
-      
-      // Émettre un événement pour l'évaluation forcée
-      if (this.eventBus) {
-        this.eventBus.emit({
-          type: RagKagEventType.MODEL_EVALUATION_COMPLETED,
-          source: 'ModelEvaluationService',
-          payload: {
-            type: 'forced',
-            modelName,
-            evaluation,
-            timestamp: new Date()
-          }
-        });
-      }
-      
-      return evaluation;
-    } catch (error) {
-      this.logger.error(`Erreur lors de l'évaluation forcée de ${modelName}`, { error });
-      
-      // Émettre un événement d'erreur
-      if (this.eventBus) {
-        this.eventBus.emit({
-          type: RagKagEventType.MODEL_EVALUATION_ERROR,
-          source: 'ModelEvaluationService',
-          payload: {
-            modelName,
-            error: error.message
-          }
-        });
-      }
-      
-      throw error;
-    }
-  }
+  // TODO: Update this method to work with the new Python API integration
+  // async forceEvaluateModel(modelName: string) {
+  //   const evaluation = await this.evaluateModel(modelName);
+  //   await this.saveEvaluation(modelName, evaluation);
+  //   
+  //   this.logger.info(`Évaluation forcée du modèle ${modelName} terminée`, {
+  //     accuracy: evaluation.metrics.accuracy,
+  //     bleuScore: evaluation.metrics.bleuScore
+  //   });
+  //   
+  //   return evaluation;
+  // }
 } 

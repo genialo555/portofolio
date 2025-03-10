@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { LoggerProvider, LOGGER_TOKEN } from './utils/logger-tokens';
+import { LoggerProvider } from './utils/logger-tokens';
 import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { RouterService } from './orchestrator/router.service';
 import { OutputCollectorService } from './orchestrator/output-collector.service';
@@ -15,31 +15,21 @@ import { SynthesisService } from './synthesis/synthesis.service';
 import { PromptsService } from './prompts/prompts.service';
 import { TypesModule } from './types/types.module';
 import { RagKagController } from './controllers/rag-kag.controller';
-import { ApiProviderFactory } from './apis/api-provider-factory.service';
-import { GoogleAiService } from './apis/google-ai.service';
-import { QwenAiService } from './apis/qwen-ai.service';
-import { DeepseekAiService } from './apis/deepseek-ai.service';
-import { HouseModelService } from './apis/house-model.service';
-import { ModelTrainingService } from './apis/model-training.service';
-import { ModelUtilsService } from './apis/model-utils.service';
-import { TokenizerService } from './apis/tokenizer.service';
-import { ModelEvaluationService } from './apis/model-evaluation.service';
-import { ResilienceService } from './utils/resilience.service';
 import { AgentFactoryService } from './agents/agent-factory.service';
-import { AnomalyDetectorModule } from '../utils/anomaly-detector.module';
 import { ScheduleModule } from '@nestjs/schedule';
-import { CoreModule } from './core/core.module';
 import { AutoTestService } from './testing/auto-test.service';
+import { CommonModule } from './common/common.module';
+import { ComplexityAnalyzerService } from './utils/complexity-analyzer.service';
 
 /**
  * Module principal du système RAG/KAG
+ * Utilise maintenant CommonModule pour éviter les dépendances circulaires
  */
 @Module({
   imports: [
     TypesModule,
-    AnomalyDetectorModule,
-    CoreModule, // Module pour les services de base (EventBus, KnowledgeGraph)
-    ScheduleModule.forRoot() // Pour les tâches périodiques
+    ScheduleModule.forRoot(), // Pour les tâches périodiques
+    CommonModule, // Module qui regroupe tous les services partagés
   ],
   controllers: [
     RagKagController
@@ -48,19 +38,8 @@ import { AutoTestService } from './testing/auto-test.service';
     // Logger
     LoggerProvider,
     
-    // Résilience
-    ResilienceService,
-    
-    // APIs
-    ApiProviderFactory,
-    GoogleAiService,
-    QwenAiService,
-    DeepseekAiService,
-    HouseModelService,
-    ModelTrainingService,
-    ModelUtilsService, // Service d'utilités pour les modèles TensorFlow
-    TokenizerService, // Service de tokenization
-    ModelEvaluationService, // Service d'évaluation de modèles
+    // Services de complexité
+    ComplexityAnalyzerService,
     
     // Agents
     AgentFactoryService,
@@ -94,16 +73,10 @@ import { AutoTestService } from './testing/auto-test.service';
     DebateService,
     SynthesisService,
     PromptsService,
-    ApiProviderFactory,
     AgentFactoryService,
-    HouseModelService,
-    ModelTrainingService,
     EducationalPoolService,
-    ModelUtilsService,
-    TokenizerService,
-    ModelEvaluationService,
-    ResilienceService,
-    AutoTestService
+    AutoTestService,
+    ComplexityAnalyzerService,
   ]
 })
 export class RagKagModule {} 

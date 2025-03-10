@@ -1,29 +1,48 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { LOGGER_TOKEN, ILogger } from '../utils/logger-tokens';
+import { Inject, Injectable, Optional, forwardRef } from '@nestjs/common';
+import { LOGGER_TOKEN } from '../utils/logger-tokens';
+import { ILogger } from '../utils/logger-tokens';
 import { RouterService } from './router.service';
-import { OutputCollectorService } from './output-collector.service';
 import { PoolManagerService } from '../pools/pool-manager.service';
 import { DebateService } from '../debate/debate.service';
+import { OutputCollectorService } from './output-collector.service';
 import { SynthesisService } from '../synthesis/synthesis.service';
 import { QueryAnalyzerService } from '../core/query-analyzer.service';
 import { EventBusService, RagKagEventType } from '../core/event-bus.service';
-import { determineRelevantPools } from '../../legacy/prompts/meta-prompts/orchestrator';
-import { CoordinationHandler } from '../../legacy/prompts/meta-prompts/handler';
-import { 
-  UserQuery, 
-  FinalResponse, 
-  PoolOutputs, 
-  TargetPools,
-  DebateResult,
-  ExpertiseLevel,
-  KagAnalysis, 
-  RagAnalysis,
-  DebateInput,
-  ComponentStatus,
-  ConfidenceLevel
-} from '../types';
+import { UserQuery as RagKagUserQuery, ExpertiseLevel, TargetPools } from '../types';
 import { UserQuery as CommonUserQuery } from '../../types';
 import { AgentType } from '../../legacy/types/agent.types';
+import { ComplexityAnalyzerService, ComplexityLevel } from '../utils/complexity-analyzer.service';
+import { CoordinationHandler } from '../../legacy/prompts/meta-prompts/handler';
+import { KagEngineService } from '../debate/kag-engine.service';
+import { RagEngineService } from '../debate/rag-engine.service';
+import { ApiProviderFactory } from '../apis/api-provider-factory.service';
+import { determineRelevantPools } from '../../legacy/prompts/meta-prompts/orchestrator';
+import { ResilienceService } from '../utils/resilience.service';
+
+export enum ComponentStatus {
+  READY = 'READY',
+  INITIALIZING = 'INITIALIZING',
+  PROCESSING = 'PROCESSING',
+  COMPLETED = 'COMPLETED',
+  ERROR = 'ERROR',
+  IDLE = 'IDLE'
+}
+
+export enum ComponentType {
+  QUERY_ANALYZER = 'QUERY_ANALYZER',
+  KNOWLEDGE_RETRIEVER = 'KNOWLEDGE_RETRIEVER',
+  RAG_ENGINE = 'RAG_ENGINE',
+  KAG_ENGINE = 'KAG_ENGINE',
+  DEBATE_PROTOCOL = 'DEBATE_PROTOCOL',
+  SYNTHESIS = 'SYNTHESIS'
+}
+
+export interface SynthesisOptions {
+  expertiseLevel: ExpertiseLevel;
+  includeSuggestions: boolean;
+  maxLength?: number;
+  storeInGraph?: boolean;
+}
 
 interface ProcessingOptions {
   includeSuggestions?: boolean;
@@ -33,31 +52,37 @@ interface ProcessingOptions {
   useAdvancedCoordination?: boolean;
   adaptiveExecution?: boolean;
   executionMode?: 'sequential' | 'parallel' | 'adaptive';
+  useComplexityAnalyzer?: boolean;
 }
 
-/**
- * Adapte une requête utilisateur du format commun au format RAG/KAG
- */
-function adaptToRagKagUserQuery(query: CommonUserQuery | string): UserQuery {
+function adaptToRagKagUserQuery(query: CommonUserQuery | string): RagKagUserQuery {
   if (typeof query === 'string') {
     return { text: query, content: query };
+  } else if ('text' in query) {
+    return { 
+      text: query.text,
+      content: query.text,
+      contextInfo: query.contextInfo,
+      domainHints: query.domainHints,
+      timestamp: query.timestamp,
+      sessionId: query.sessionId,
+      userId: query.userId,
+      metadata: query.metadata,
+      userType: query.userType
+    };
   }
   
-  return {
-    ...query,
-    content: query.text
-  };
+  return query as unknown as RagKagUserQuery;
 }
 
-/**
- * Service d'orchestration des requêtes
- * Utilise l'EventBusService et le QueryAnalyzerService pour une coordination plus efficace
- * Intègre les fonctions legacy pour les cas où c'est nécessaire
- */
 @Injectable()
 export class OrchestratorService {
   private readonly legacyCoordinationHandler: CoordinationHandler;
   
+  private apiProviderFactory?: ApiProviderFactory;
+  private ragEngine?: RagEngineService;
+  private kagEngine?: KagEngineService;
+
   constructor(
     @Inject(LOGGER_TOKEN) private readonly logger: ILogger,
     private readonly router: RouterService,
@@ -66,120 +91,80 @@ export class OrchestratorService {
     private readonly outputCollector: OutputCollectorService,
     private readonly synthesisService: SynthesisService,
     private readonly queryAnalyzer: QueryAnalyzerService,
-    private readonly eventBus: EventBusService
+    private readonly eventBus: EventBusService,
+    private readonly complexityAnalyzer: ComplexityAnalyzerService,
+    private readonly resilienceService: ResilienceService,
+    @Optional() @Inject(forwardRef(() => ApiProviderFactory)) apiProviderFactory?: ApiProviderFactory,
+    @Optional() @Inject(forwardRef(() => KagEngineService)) kagEngine?: KagEngineService,
+    @Optional() @Inject(forwardRef(() => RagEngineService)) ragEngine?: RagEngineService
   ) {
     this.legacyCoordinationHandler = new CoordinationHandler({
-      maxRetries: 2,
-      timeoutMs: 60000,
+      maxRetries: 3,
+      backoffFactor: 1.5,
+      timeoutMs: 30000,
       enableCircuitBreaker: true,
+      circuitBreakerThreshold: 5,
+      enableCache: true,
+      cacheTtlMs: 3600000,
       traceLevel: 'standard'
     });
     
-    this.logger.info('OrchestratorService initialisé avec capacités de coordination avancées');
+    this.apiProviderFactory = apiProviderFactory;
+    this.kagEngine = kagEngine;
+    this.ragEngine = ragEngine;
+    
+    this.logger.log('OrchestratorService initialisé avec capacités de coordination avancées', {
+      context: 'OrchestratorService'
+    });
   }
 
-  /**
-   * Traite une requête utilisateur complète
-   * @param query Requête utilisateur
-   * @param expertiseLevel Niveau d'expertise
-   * @param options Options supplémentaires
-   * @returns Réponse finale structurée
-   */
   async processQuery(
-    query: UserQuery | CommonUserQuery | string, 
+    query: RagKagUserQuery | CommonUserQuery | string, 
     expertiseLevel: ExpertiseLevel = 'INTERMEDIATE',
     options: ProcessingOptions = {}
-  ): Promise<FinalResponse> {
+  ): Promise<any> {
     const startTime = Date.now();
-    const adaptedQuery = typeof query === 'string' || 'text' in query 
-      ? adaptToRagKagUserQuery(query)
-      : query;
+    const adaptedQuery = adaptToRagKagUserQuery(query);
     
-    const queryContent = typeof adaptedQuery === 'string' 
-      ? adaptedQuery 
-      : adaptedQuery.text || adaptedQuery.content || '';
-    
-    this.logger.info(`Traitement de la requête: "${queryContent.substring(0, 50)}${queryContent.length > 50 ? '...' : ''}"`, {
-      expertiseLevel,
-      prioritizeSpeed: options.prioritizeSpeed,
-      useLegacyRouter: options.useLegacyRouter,
-      useAdvancedCoordination: options.useAdvancedCoordination
-    });
+    const queryContent = adaptedQuery.content || '';
     
     this.eventBus.emit({
       type: RagKagEventType.QUERY_RECEIVED,
       source: 'OrchestratorService',
-      payload: { 
-        query: queryContent,
-        expertiseLevel,
-        options
-      }
+      payload: { query: adaptedQuery }
     });
-    
+
     if (options.useAdvancedCoordination) {
       return this.processWithAdvancedCoordination(adaptedQuery, expertiseLevel, options);
     }
-
+    
     try {
-      const analysisResult = await this.queryAnalyzer.analyzeQuery(adaptedQuery);
-      
-      let targetPools: TargetPools;
-      
-      if (options.useLegacyRouter) {
-        this.logger.debug('Utilisation du routeur legacy pour déterminer les pools cibles');
-        const relevanceScores = determineRelevantPools(queryContent);
+      if (options.useComplexityAnalyzer) {
+        const complexity = await this.complexityAnalyzer.analyzeComplexity(adaptedQuery.content, {
+          useCachedResults: true,
+          quickAnalysis: options.prioritizeSpeed
+        });
         
-        targetPools = {
-          commercial: relevanceScores[AgentType.COMMERCIAL] > 0.3,
-          marketing: relevanceScores[AgentType.MARKETING] > 0.3,
-          sectoriel: relevanceScores[AgentType.SECTORIEL] > 0.3,
-          educational: relevanceScores[AgentType.EDUCATIONAL] > 0.3,
-          primaryFocus: this.determinePrimaryFocusFromScores(relevanceScores)
-        };
-      } else {
-        targetPools = await this.router.determineTargetPools(adaptedQuery);
+        this.logger.log(`Complexité de la requête: ${complexity.level} (score: ${complexity.score.toFixed(2)})`, {
+          context: 'OrchestratorService'
+        });
+        
+        switch (complexity.recommendedPipeline) {
+          case 'simple':
+            return await this.processSimpleQuery(adaptedQuery, expertiseLevel, options);
+          case 'standard':
+            return await this.processStandardQuery(adaptedQuery, expertiseLevel, options);
+          case 'full':
+          default:
+            return await this.processFullQuery(adaptedQuery, expertiseLevel, options);
+        }
       }
-
-      this.logger.debug('Exécution des agents dans les pools cibles');
-      const poolOutputs = await this.poolManager.executeAgents(targetPools, adaptedQuery);
       
-      this.logger.debug('Collecte et traitement des sorties des pools');
-      const processedOutputs = await this.outputCollector.collectAndProcess(poolOutputs);
-      
-      this.logger.debug('Démarrage du débat');
-      const debateResult = await this.debateService.generateDebate(adaptedQuery, {
-        includePoolOutputs: true,
-        prioritizeSpeed: options.prioritizeSpeed
-      });
-      
-      this.logger.debug('Génération de la synthèse finale');
-      const finalResponse = await this.synthesisService.generateFinalResponse(
-        adaptedQuery,
-        debateResult,
-        {
-          expertiseLevel,
-          includeSuggestions: options.includeSuggestions !== false,
-          maxLength: options.maxLength
-        }
-      );
-      
-      this.eventBus.emit({
-        type: RagKagEventType.QUERY_PROCESSED,
-        source: 'OrchestratorService',
-        payload: {
-          query: queryContent,
-          duration: Date.now() - startTime,
-          poolsUsed: Object.entries(targetPools)
-            .filter(([key, value]) => value === true && key !== 'primaryFocus')
-            .map(([key]) => key.toUpperCase())
-        }
-      });
-      
-      return finalResponse;
+      return await this.processFullQuery(adaptedQuery, expertiseLevel, options);
     } catch (error) {
       this.logger.error(`Erreur lors du traitement de la requête: ${error.message}`, {
-        error,
-        query: queryContent
+        context: 'OrchestratorService',
+        error
       });
       
       this.eventBus.emit({
@@ -192,9 +177,9 @@ export class OrchestratorService {
       });
       
       return {
-        content: `Une erreur est survenue lors du traitement de votre requête : ${error.message}`,
+        content: `Nous avons rencontré une erreur lors du traitement de votre requête: ${error.message}`,
         metaData: {
-          sourceTypes: ['RAG', 'KAG'],
+          sourceTypes: ['ERROR'],
           confidenceLevel: 'LOW',
           processingTime: Date.now() - startTime,
           usedAgentCount: 0,
@@ -205,19 +190,15 @@ export class OrchestratorService {
       };
     }
   }
-  
-  /**
-   * Adapte les résultats du legacy au format de réponse final
-   */
+
   private adaptLegacyResultsToFinalResponse(
     results: any,
-    expertiseLevel: ExpertiseLevel,
+    expertiseLevel: string,
     startTime: number
-  ): FinalResponse {
-    // Extraire la réponse principale des résultats
+  ): any {
     let content = '';
     let topicsIdentified: string[] = [];
-    let confidenceLevel: ConfidenceLevel = 'MEDIUM';
+    let confidenceLevel: string = 'MEDIUM';
     let usedAgentCount = 0;
     
     if (results && results.outputs && results.outputs.response) {
@@ -231,14 +212,12 @@ export class OrchestratorService {
       confidenceLevel = 'LOW';
     }
     
-    // Extraire les thèmes identifiés si disponibles
     if (results && results.analysis && results.analysis.themes) {
       topicsIdentified = results.analysis.themes;
     } else if (results && results.metadata && results.metadata.themes) {
       topicsIdentified = results.metadata.themes;
     }
     
-    // Déterminer le niveau de confiance
     if (results && results.metadata && results.metadata.confidence) {
       const confidence = parseFloat(results.metadata.confidence);
       if (confidence > 0.7) confidenceLevel = 'HIGH';
@@ -246,7 +225,6 @@ export class OrchestratorService {
       else confidenceLevel = 'LOW';
     }
     
-    // Compter les agents utilisés
     if (results && results.metadata && results.metadata.agentsUsed) {
       usedAgentCount = results.metadata.agentsUsed;
     } else if (results && results.agentsUsed) {
@@ -268,28 +246,22 @@ export class OrchestratorService {
         : []
     };
   }
-  
-  /**
-   * Traite une requête avec le système de coordination avancé du legacy
-   */
+
   private async processWithAdvancedCoordination(
-    query: UserQuery,
+    query: RagKagUserQuery,
     expertiseLevel: ExpertiseLevel,
     options: ProcessingOptions
-  ): Promise<FinalResponse> {
+  ): Promise<any> {
     const startTime = Date.now();
-    const queryText = typeof query === 'string' ? query : query.text || query.content || '';
+    const queryText = query.content || '';
     
-    this.logger.info(`Traitement avec coordination avancée: "${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}"`, {
-      executionMode: options.executionMode || 'adaptive'
+    this.logger.log(`Traitement avec coordination avancée: "${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}"`, {
+      context: 'OrchestratorService'
     });
     
     try {
-      // Récupérer l'état actuel du système pour la coordination
       const systemState = await this.getSystemState();
       
-      // Créer le contexte de coordination pour le legacy handler
-      // Convertir les types pour compatibilité
       const coordinationContext = {
         query: queryText,
         systemState,
@@ -299,13 +271,10 @@ export class OrchestratorService {
         priority: options.prioritizeSpeed ? 2 : 1
       };
       
-      // Exécuter le système de coordination legacy
       const coordinationResults = await this.legacyCoordinationHandler.executeCoordination(coordinationContext);
       
-      // Transformer les résultats en format de réponse finale
-      const finalResponse = this.adaptLegacyResultsToFinalResponse(coordinationResults, expertiseLevel, startTime);
+      const finalResponse = this.adaptLegacyResultsToFinalResponse(coordinationResults, expertiseLevel.toString(), startTime);
       
-      // Émettre un événement de requête traitée
       this.eventBus.emit({
         type: RagKagEventType.QUERY_PROCESSED,
         source: 'OrchestratorService',
@@ -399,17 +368,248 @@ export class OrchestratorService {
     let maxScore = 0;
     let primaryType: AgentType | undefined;
     
-    for (const [type, score] of Object.entries(relevanceScores)) {
+    Object.entries(relevanceScores).forEach(([type, score]) => {
       if (score > maxScore) {
         maxScore = score;
         primaryType = type as AgentType;
       }
-    }
+    });
     
     if (maxScore < 0.4) {
       return undefined;
     }
     
     return primaryType as 'COMMERCIAL' | 'MARKETING' | 'SECTORIEL' | 'EDUCATIONAL';
+  }
+
+  private async processSimpleQuery(
+    query: RagKagUserQuery,
+    expertiseLevel: string,
+    options: ProcessingOptions
+  ): Promise<any> {
+    const startTime = Date.now();
+    this.logger.log(`Traitement de requête simple: ${query.content}`, {
+      context: 'OrchestratorService'
+    });
+    
+    try {
+      const apiFact = this.apiProviderFactory || this.getApiProviderFactory();
+      
+      const response = await apiFact.generateResponse(
+        'HOUSE_MODEL',
+        `Réponds à la question suivante de manière ${this.adaptExpertiseLevel(expertiseLevel)}: ${query.content}`,
+        { 
+          temperature: 0.3,
+          maxLength: options.maxLength || 500
+        }
+      );
+      
+      return {
+        content: response.text || response.content || response,
+        metaData: {
+          sourceTypes: ['HOUSE_MODEL'],
+          confidenceLevel: 'MEDIUM',
+          processingTime: Date.now() - startTime,
+          usedAgentCount: 1,
+          expertiseLevel,
+          topicsIdentified: []
+        },
+        suggestedFollowUp: []
+      };
+    } catch (error) {
+      this.logger.error(`Erreur lors du traitement de la requête simple: ${error.message}`, {
+        context: 'OrchestratorService',
+        error
+      });
+      
+      this.logger.log('Bascule vers le pipeline standard suite à une erreur', {
+        context: 'OrchestratorService'
+      });
+      
+      return this.processStandardQuery(query, expertiseLevel, options);
+    }
+  }
+
+  private async processStandardQuery(
+    query: RagKagUserQuery,
+    expertiseLevel: string,
+    options: ProcessingOptions
+  ): Promise<any> {
+    const startTime = Date.now();
+    this.logger.log(`Traitement de requête standard: ${query.content}`, {
+      context: 'OrchestratorService'
+    });
+    
+    try {
+      const queryAnalysis = await this.queryAnalyzer.analyzeQuery(query);
+      
+      const useRag = queryAnalysis.complexity > 0.5 || 
+                    queryAnalysis.suggestedComponents.includes(ComponentType.RAG_ENGINE);
+      
+      let analysis;
+      if (useRag) {
+        const ragEng = this.ragEngine || this.getRagEngine();
+        analysis = await ragEng.generateAnalysis(query);
+      } else {
+        const kagEng = this.kagEngine || this.getKagEngine();
+        analysis = await kagEng.analyzeQuery(query);
+      }
+      
+      const synthesisOptions = {
+        expertiseLevel: expertiseLevel as ExpertiseLevel,
+        includeSuggestions: options.includeSuggestions || false,
+        maxLength: options.maxLength,
+        storeInGraph: true
+      };
+      
+      const simulatedDebateResult = {
+        content: analysis.content,
+        hasConsensus: true,
+        identifiedThemes: [],
+        processingTime: analysis.processingTime,
+        sourceMetrics: {
+          kagConfidence: useRag ? undefined : (analysis as any).confidenceScore,
+          ragConfidence: useRag ? (analysis as any).confidenceScore : undefined,
+          poolsUsed: [],
+          sourcesUsed: useRag ? (analysis as any).sources || [] : []
+        },
+        consensusLevel: 1.0,
+        debateTimestamp: new Date()
+      };
+      
+      return await this.synthesisService.generateFinalResponse(
+        query,
+        simulatedDebateResult,
+        synthesisOptions
+      );
+    } catch (error) {
+      this.logger.error(`Erreur lors du traitement de la requête standard: ${error.message}`, {
+        context: 'OrchestratorService',
+        error
+      });
+      
+      this.logger.log('Bascule vers le pipeline complet suite à une erreur', {
+        context: 'OrchestratorService'
+      });
+      
+      return this.processFullQuery(query, expertiseLevel, options);
+    }
+  }
+
+  private async processFullQuery(
+    query: RagKagUserQuery,
+    expertiseLevel: string,
+    options: ProcessingOptions
+  ): Promise<any> {
+    const startTime = Date.now();
+    this.logger.log(`Traitement de requête complexe avec pipeline complet: ${query.content}`, {
+      context: 'OrchestratorService'
+    });
+    
+    try {
+      const targetPools = options.useLegacyRouter
+        ? this.determinePools(query)
+        : await this.router.determineTargetPools(query);
+      
+      const poolOutputs = await this.poolManager.executeAgents(targetPools, query);
+      
+      const processedOutputs = await this.outputCollector.collectAndProcess(poolOutputs);
+      
+      const kagEng = this.kagEngine || this.getKagEngine();
+      const kagAnalysis = await kagEng.analyzeQuery(query);
+      
+      const ragEng = this.ragEngine || this.getRagEngine();
+      const ragAnalysis = await ragEng.generateAnalysis(query);
+      
+      const debateResult = await this.debateService.generateDebate(query, {
+        includePoolOutputs: true,
+        prioritizeSpeed: options.prioritizeSpeed
+      });
+      
+      const synthesisOptions = {
+        expertiseLevel: expertiseLevel as ExpertiseLevel,
+        includeSuggestions: options.includeSuggestions !== false,
+        maxLength: options.maxLength,
+        storeInGraph: true
+      };
+      
+      return await this.synthesisService.generateFinalResponse(
+        query,
+        debateResult,
+        synthesisOptions
+      );
+    } catch (error) {
+      this.logger.error(`Erreur lors du traitement de la requête complète: ${error.message}`, {
+        context: 'OrchestratorService',
+        error
+      });
+      
+      return {
+        content: `Nous avons rencontré une erreur lors du traitement de votre requête: ${error.message}`,
+        metaData: {
+          sourceTypes: ['ERROR'],
+          confidenceLevel: 'LOW',
+          processingTime: Date.now() - startTime,
+          usedAgentCount: 0,
+          expertiseLevel,
+          topicsIdentified: []
+        },
+        error: error.message
+      };
+    }
+  }
+
+  private adaptExpertiseLevel(level: string): string {
+    switch (level) {
+      case 'BEGINNER': return 'simple et accessible';
+      case 'INTERMEDIATE': return 'claire et informative';
+      case 'ADVANCED': return 'détaillée et technique';
+      default: return 'informative';
+    }
+  }
+
+  private getApiProviderFactory(): ApiProviderFactory {
+    if (this.apiProviderFactory) {
+      return this.apiProviderFactory;
+    }
+    this.logger.warn('ApiProviderFactory not injected, attempting to create a new instance', {
+      context: 'OrchestratorService'
+    });
+    throw new Error('ApiProviderFactory not available');
+  }
+
+  private getRagEngine(): RagEngineService {
+    if (this.ragEngine) {
+      return this.ragEngine;
+    }
+    this.logger.warn('RagEngine not injected, attempting to create a new instance', {
+      context: 'OrchestratorService'
+    });
+    throw new Error('RagEngine not available');
+  }
+
+  private getKagEngine(): KagEngineService {
+    if (this.kagEngine) {
+      return this.kagEngine;
+    }
+    this.logger.warn('KagEngine not injected, attempting to create a new instance', {
+      context: 'OrchestratorService'
+    });
+    throw new Error('KagEngine not available');
+  }
+
+  private determinePools(query: RagKagUserQuery): TargetPools {
+    this.logger.log('Utilisation du routeur legacy pour déterminer les pools cibles', {
+      context: 'OrchestratorService'
+    });
+    const relevanceScores = determineRelevantPools(query.content);
+    
+    return {
+      commercial: relevanceScores[AgentType.COMMERCIAL] > 0.3,
+      marketing: relevanceScores[AgentType.MARKETING] > 0.3,
+      sectoriel: relevanceScores[AgentType.SECTORIEL] > 0.3,
+      educational: relevanceScores[AgentType.EDUCATIONAL] > 0.3,
+      primaryFocus: this.determinePrimaryFocusFromScores(relevanceScores)
+    };
   }
 } 

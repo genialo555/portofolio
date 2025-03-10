@@ -5,6 +5,7 @@ import { HouseModelService } from './house-model.service';
 import { ModelEvaluationService } from './model-evaluation.service';
 import { EventBusService, RagKagEventType } from '../core/event-bus.service';
 import { KnowledgeGraphService, KnowledgeSource } from '../core/knowledge-graph.service';
+import { PythonApiService } from './python-api.service';
 
 /**
  * Service pour la gestion de l'entraînement des modèles
@@ -21,6 +22,7 @@ export class ModelTrainingService implements OnModuleInit {
     @Inject(LOGGER_TOKEN) logger: ILogger,
     private readonly houseModelService: HouseModelService,
     private readonly modelEvaluationService: ModelEvaluationService,
+    @Optional() private readonly pythonApiService?: PythonApiService,
     @Optional() private readonly eventBus?: EventBusService,
     @Optional() private readonly knowledgeGraph?: KnowledgeGraphService
   ) {
@@ -255,61 +257,61 @@ export class ModelTrainingService implements OnModuleInit {
               });
             }
             
-            const result = await this.houseModelService.finetuneDistilledModel(model);
-            
-            if (result.success) {
-              const updatedStats = {
-                lastTraining: now,
-                examples: result.trainedExamples || 0,
-                accuracy: result.accuracy,
-                loss: result.loss
-              };
-              
-              this.trainingStats.set(model, updatedStats);
-              
-              // Stocker les résultats dans le graphe de connaissances
-              if (this.knowledgeGraph) {
-                this.storeTrainingResultInGraph(model, result, updatedStats);
-              }
-              
-              this.logger.info(`Entraînement du modèle ${model} terminé avec succès`, {
-                examples: result.trainedExamples,
-                accuracy: result.accuracy,
-                loss: result.loss
-              });
-              
-              // Émettre un événement de succès
-              if (this.eventBus) {
-                this.eventBus.emit({
-                  type: RagKagEventType.MODEL_TRAINING_COMPLETED,
-                  source: 'ModelTrainingService',
-                  payload: {
-                    model,
-                    success: true,
-                    examples: result.trainedExamples,
-                    accuracy: result.accuracy,
-                    loss: result.loss
-                  }
-                });
-              }
-            } else {
-              this.logger.warn(`Échec de l'entraînement du modèle ${model}`, {
-                reason: result.message
-              });
-              
-              // Émettre un événement d'échec
-              if (this.eventBus) {
-                this.eventBus.emit({
-                  type: RagKagEventType.CUSTOM,
-                  source: 'ModelTrainingService',
-                  payload: {
-                    eventType: 'MODEL_TRAINING_FAILED',
-                    model,
-                    reason: result.message
-                  }
-                });
-              }
-            }
+            // TODO: Implement new training logic for the Python API
+            // const result = await this.houseModelService.finetuneDistilledModel(model);
+            // 
+            // if (result.success) {
+            //   const updatedStats = {
+            //     lastTraining: now,
+            //     examples: result.trainedExamples || 0,
+            //     accuracy: result.accuracy,
+            //     loss: result.loss
+            //   };
+            //   
+            //   this.trainingStats.set(model, updatedStats);
+            //   
+            //   // Stocker les résultats dans le graphe de connaissances
+            //   if (this.knowledgeGraph) {
+            //     this.storeTrainingResultInGraph(model, result, updatedStats);
+            //   }
+            //   
+            //   this.logger.info(`Entraînement du modèle ${model} terminé avec succès`, {
+            //     examples: result.trainedExamples,
+            //     accuracy: result.accuracy,
+            //     loss: result.loss
+            //   });
+            //   
+            //   // Émettre un événement de succès
+            //   if (this.eventBus) {
+            //     this.eventBus.emit({
+            //       type: RagKagEventType.MODEL_TRAINING_COMPLETED,
+            //       source: 'ModelTrainingService',
+            //       payload: {
+            //         model,
+            //         success: true,
+            //         examples: result.trainedExamples,
+            //         accuracy: result.accuracy,
+            //         loss: result.loss
+            //       }
+            //     });
+            //   }
+            // } else {
+            //   this.logger.warn(`Échec de l'entraînement du modèle ${model}`, {
+            //     reason: result.message
+            //   });
+            //   
+            //   // Émettre un événement d'échec
+            //   if (this.eventBus) {
+            //     this.eventBus.emit({
+            //       type: RagKagEventType.CUSTOM,
+            //       source: 'ModelTrainingService',
+            //       payload: {
+            //         eventType: 'MODEL_TRAINING_FAILED',
+            //         model,
+            //         reason: result.message
+            //       }
+            //     });
+            //   }
           } else {
             this.logger.info(`Le modèle ${model} a été entraîné récemment (il y a ${hoursSinceLastTraining.toFixed(1)} heures), entraînement ignoré`);
             
@@ -419,162 +421,146 @@ export class ModelTrainingService implements OnModuleInit {
   
   /**
    * Force l'entraînement d'un modèle spécifique
+   * @returns boolean - true si l'entraînement est lancé avec succès, false sinon
    */
-  public async forceTrainModel(modelName: string) {
-    // Émettre un événement de début d'entraînement forcé
-    if (this.eventBus) {
-      this.eventBus.emit({
-        type: RagKagEventType.MODEL_TRAINING_STARTED,
-        source: 'ModelTrainingService',
-        payload: {
-          model: modelName,
-          type: 'forced'
-        }
-      });
-    }
-    
-    if (this.isTrainingInProgress) {
-      const errorMessage = 'Un entraînement est déjà en cours';
-      
-      // Émettre un événement d'erreur
-      if (this.eventBus) {
-        this.eventBus.emit({
-          type: RagKagEventType.CUSTOM,
-          source: 'ModelTrainingService',
-          payload: {
-            eventType: 'FORCED_TRAINING_FAILED',
-            model: modelName,
-            reason: errorMessage
-          }
-        });
-      }
-      
-      throw new Error(errorMessage);
-    }
-    
+  public async forceTrainModel(modelName: string): Promise<boolean> {
     if (!this.distilledModels.includes(modelName)) {
-      const errorMessage = `Le modèle ${modelName} n'est pas un modèle distillé valide`;
-      
-      // Émettre un événement d'erreur
-      if (this.eventBus) {
-        this.eventBus.emit({
-          type: RagKagEventType.CUSTOM,
-          source: 'ModelTrainingService',
-          payload: {
-            eventType: 'FORCED_TRAINING_FAILED',
-            model: modelName,
-            reason: errorMessage
-          }
-        });
-      }
-      
-      throw new Error(errorMessage);
+      throw new Error(`Le modèle ${modelName} n'est pas un modèle distillé valide`);
     }
     
     try {
-      this.isTrainingInProgress = true;
-      this.logger.info(`Démarrage de l'entraînement forcé du modèle ${modelName}`);
-      
-      const result = await this.houseModelService.finetuneDistilledModel(modelName);
-      
-      if (result.success) {
-        const updatedStats = {
-          lastTraining: new Date(),
-          examples: result.trainedExamples || 0,
-          accuracy: result.accuracy,
-          loss: result.loss
-        };
-        
-        this.trainingStats.set(modelName, updatedStats);
-        
-        // Stocker les résultats dans le graphe de connaissances
-        if (this.knowledgeGraph) {
-          this.storeTrainingResultInGraph(modelName, result, updatedStats);
-        }
-        
-        // Après l'entraînement, évaluer le modèle
-        this.logger.info(`Démarrage de l'évaluation du modèle ${modelName} après entraînement`);
-        
-        // Émettre un événement de début d'évaluation
-        if (this.eventBus) {
-          this.eventBus.emit({
-            type: RagKagEventType.MODEL_EVALUATION_STARTED,
-            source: 'ModelTrainingService',
-            payload: {
-              model: modelName,
-              type: 'post_training'
-            }
-          });
-        }
-        
-        await this.modelEvaluationService.evaluateModel(modelName);
-        
-        // Émettre un événement de fin d'entraînement forcé
-        if (this.eventBus) {
-          this.eventBus.emit({
-            type: RagKagEventType.MODEL_TRAINING_COMPLETED,
-            source: 'ModelTrainingService',
-            payload: {
-              model: modelName,
-              type: 'forced',
-              success: true,
-              examples: result.trainedExamples,
-              accuracy: result.accuracy,
-              loss: result.loss
-            }
-          });
-        }
-        
-        return {
-          success: true,
-          message: `Entraînement du modèle ${modelName} terminé avec succès`,
-          stats: {
-            examples: result.trainedExamples,
-            accuracy: result.accuracy,
-            loss: result.loss
-          }
-        };
-      } else {
-        // Émettre un événement d'échec
-        if (this.eventBus) {
-          this.eventBus.emit({
-            type: RagKagEventType.CUSTOM,
-            source: 'ModelTrainingService',
-            payload: {
-              eventType: 'FORCED_TRAINING_FAILED',
-              model: modelName,
-              reason: result.message
-            }
-          });
-        }
-        
-        return {
-          success: false,
-          message: result.message
-        };
+      // Si le service Python API n'est pas disponible
+      if (!this.pythonApiService) {
+        this.logger.warn(`Service Python API non disponible pour l'entraînement du modèle ${modelName}`);
+        return false;
       }
-    } catch (error) {
-      this.logger.error(`Erreur lors de l'entraînement forcé du modèle ${modelName}`, { error });
       
-      // Émettre un événement d'erreur
+      // Vérifier si le service est disponible
+      if (!this.pythonApiService.isAvailable()) {
+        this.logger.warn(`API Python non disponible pour l'entraînement du modèle ${modelName}`);
+        return false;
+      }
+      
+      this.logger.info(`Démarrage de l'entraînement forcé du modèle ${modelName} via l'API Python`);
+      
+      // Si un entraînement est déjà en cours
+      if (this.isTrainingInProgress) {
+        this.logger.warn(`Impossible de lancer l'entraînement: un autre entraînement est déjà en cours`);
+        return false;
+      }
+      
+      this.isTrainingInProgress = true;
+      
+      // Émettre un événement de début d'entraînement
       if (this.eventBus) {
         this.eventBus.emit({
-          type: RagKagEventType.QUERY_ERROR,
+          type: RagKagEventType.MODEL_TRAINING_STARTED,
           source: 'ModelTrainingService',
           payload: {
-            operation: 'forced_training',
-            model: modelName,
-            error: error.message
+            type: 'forced',
+            model: modelName
           }
         });
       }
       
-      return {
-        success: false,
-        message: `Erreur: ${error.message}`
-      };
-    } finally {
-      this.isTrainingInProgress = false;
+      try {
+        // Appel de l'API Python pour l'entraînement
+        const result = await this.pythonApiService.trainModel(modelName, {
+          epochs: 5,
+          batchSize: 32,
+          learningRate: 5e-5,
+          validationSplit: 0.1,
+          maxExamples: 1000,
+          saveToDisk: true
+        });
+        
+        // Traitement du résultat
+        if (result.success) {
+          this.logger.info(`Modèle ${modelName} entraîné avec succès`, {
+            examples: result.trainedExamples,
+            accuracy: result.accuracy,
+            loss: result.loss
+          });
+          
+          // Stockage des résultats dans le graphe de connaissances
+          this.storeTrainingResultInGraph(modelName, result, {
+            lastTraining: new Date(),
+            examples: result.trainedExamples || 0,
+            accuracy: result.accuracy,
+            loss: result.loss
+          });
+          
+          // Mise à jour des statistiques locales
+          this.trainingStats.set(modelName, {
+            lastTraining: new Date(),
+            examples: result.trainedExamples || 0,
+            accuracy: result.accuracy,
+            loss: result.loss
+          });
+          
+          // Émettre un événement de fin d'entraînement réussi
+          if (this.eventBus) {
+            this.eventBus.emit({
+              type: RagKagEventType.MODEL_TRAINING_COMPLETED,
+              source: 'ModelTrainingService',
+              payload: {
+                type: 'forced',
+                model: modelName,
+                success: true,
+                stats: {
+                  accuracy: result.accuracy,
+                  loss: result.loss,
+                  examples: result.trainedExamples
+                }
+              }
+            });
+          }
+          
+          this.isTrainingInProgress = false;
+          return true;
+        } else {
+          this.logger.warn(`Échec de l'entraînement forcé du modèle ${modelName}`, {
+            message: result.message
+          });
+          
+          // Émettre un événement d'échec d'entraînement
+          if (this.eventBus) {
+            this.eventBus.emit({
+              type: RagKagEventType.MODEL_TRAINING_FAILED,
+              source: 'ModelTrainingService',
+              payload: {
+                type: 'forced',
+                model: modelName,
+                reason: result.message || 'Erreur inconnue'
+              }
+            });
+          }
+          
+          this.isTrainingInProgress = false;
+          return false;
+        }
+      } catch (error) {
+        this.logger.error(`Erreur lors de l'entraînement forcé du modèle ${modelName}`, { error });
+        
+        // Émettre un événement d'erreur
+        if (this.eventBus) {
+          this.eventBus.emit({
+            type: RagKagEventType.QUERY_ERROR,
+            source: 'ModelTrainingService',
+            payload: {
+              operation: 'force_train_model',
+              model: modelName,
+              error: error.message
+            }
+          });
+        }
+        
+        this.isTrainingInProgress = false;
+        return false;
+      }
+    } catch (error) {
+      this.logger.error(`Erreur lors de l'entraînement forcé du modèle ${modelName}`, { error });
+      return false;
     }
   }
   

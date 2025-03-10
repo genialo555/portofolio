@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  ml-api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./model_cache:/app/model_cache
+      - ./data:/app/data
+    environment:
+      - PORT=8000
+      - MODEL_CACHE_DIR=/app/model_cache
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+    depends_on:
+      - redis
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+    driver: local 

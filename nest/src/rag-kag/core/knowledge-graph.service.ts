@@ -17,7 +17,11 @@ export enum RelationType {
   LEADS_TO = 'LEADS_TO',           // Succession logique
   INSTANCE_OF = 'INSTANCE_OF',     // Instance d'un concept
   PRECEDES = 'PRECEDES',           // Précédence temporelle
-  CUSTOM = 'CUSTOM'                // Relation personnalisée
+  CUSTOM = 'CUSTOM',                // Relation personnalisée
+  RELATED = 'RELATED',
+  OPPOSITE_OF = 'OPPOSITE_OF',
+  DERIVED_FROM = 'DERIVED_FROM',
+  SUPPORTED_BY = 'SUPPORTED_BY'
 }
 
 /**
@@ -106,10 +110,281 @@ export class KnowledgeGraphService {
   private nodeEdges: Map<string, Set<string>> = new Map();
   private embeddings: Map<string, number[]> = new Map(); // Simuler les embeddings pour le prototype
   
+  // Service de vérification optionnel
+  private knowledgeVerifier?: any;
+  
+  // Configuration pour la vérification automatique
+  private autoVerificationEnabled: boolean = false;
+  private autoVerificationLevel: string = 'STANDARD'; // 'STRICT', 'STANDARD', ou 'RELAXED'
+  
+  // Queue de quarantaine
+  private quarantineQueue: Map<string, {
+    node: Omit<KnowledgeNode, 'id' | 'timestamp'>;
+    expirationTime: number;
+    reason: string;
+  }> = new Map();
+
   constructor(
     @Inject(LOGGER_TOKEN) private readonly logger: ILogger,
     private readonly eventBus: EventBusService
-  ) {}
+  ) {
+    // Vérification périodique de la quarantaine
+    setInterval(() => this.processQuarantineQueue(), 60 * 60 * 1000); // Toutes les heures
+  }
+
+  /**
+   * Injection du service de vérification (pour éviter les dépendances circulaires)
+   */
+  public setKnowledgeVerifier(verifier: any): void {
+    this.knowledgeVerifier = verifier;
+    this.logger.log('KnowledgeVerifier connecté au GraphService', { 
+      context: 'KnowledgeGraphService' 
+    });
+  }
+
+  /**
+   * Active ou désactive la vérification automatique
+   */
+  public enableAutoVerification(enabled: boolean, level: 'STRICT' | 'STANDARD' | 'RELAXED' = 'STANDARD'): void {
+    this.autoVerificationEnabled = enabled;
+    this.autoVerificationLevel = level;
+    
+    this.logger.log(`Vérification automatique ${enabled ? 'activée' : 'désactivée'} (niveau: ${level})`, { 
+      context: 'KnowledgeGraphService' 
+    });
+  }
+
+  /**
+   * Ajoute un nœud avec vérification optionnelle
+   */
+  public async addNodeWithVerification(
+    node: Omit<KnowledgeNode, 'id' | 'timestamp'>,
+    verify: boolean = this.autoVerificationEnabled
+  ): Promise<string | null> {
+    // Si la vérification est désactivée ou le vérifieur n'est pas disponible
+    if (!verify || !this.knowledgeVerifier) {
+      return this.addNode(node);
+    }
+    
+    try {
+      this.logger.log(`Vérification en cours pour le nœud de type ${node.type}`, { 
+        context: 'KnowledgeGraphService',
+        content: node.content.substring(0, 50) + '...'
+      });
+      
+      // Préparer l'affirmation à vérifier
+      const claim = {
+        claim: node.content,
+        source: node.source,
+        domain: node.type,
+        confidence: node.confidence,
+        metadata: node.metadata,
+        temporalContext: node.metadata?.temporalContext
+      };
+      
+      // Vérifier l'affirmation
+      const verificationResult = await this.knowledgeVerifier.verifyClaimAdaptive(
+        claim,
+        { forceLevel: this.autoVerificationLevel as any }
+      );
+      
+      if (verificationResult.isVerified) {
+        // Enrichir les métadonnées avec les résultats de vérification
+        const enrichedNode = {
+          ...node,
+          metadata: {
+            ...node.metadata,
+            verification: {
+              verified: true,
+              confidence: verificationResult.confidenceScore,
+              methods: verificationResult.methods,
+              timestamp: Date.now()
+            }
+          }
+        };
+        
+        // Ajouter le nœud vérifié
+        const nodeId = this.addNode(enrichedNode);
+        
+        // Ajouter les liens avec les nœuds supportant cette connaissance
+        if (verificationResult.knowledgeGraphCheck?.supportingNodes) {
+          for (const supportingId of verificationResult.knowledgeGraphCheck.supportingNodes) {
+            this.addEdge({
+              sourceId: nodeId,
+              targetId: supportingId,
+              type: RelationType.SUPPORTED_BY,
+              weight: 0.8,
+              bidirectional: false,
+              confidence: verificationResult.confidenceScore
+            });
+          }
+        }
+        
+        this.logger.log(`Nœud vérifié ajouté avec succès (ID: ${nodeId})`, { 
+          context: 'KnowledgeGraphService' 
+        });
+        
+        return nodeId;
+      } else {
+        // Placer en quarantaine
+        this.addToQuarantine(node, `Échec de vérification: score ${verificationResult.confidenceScore.toFixed(2)}`);
+        return null;
+      }
+    } catch (error) {
+      this.logger.error(`Erreur lors de la vérification du nœud`, { 
+        context: 'KnowledgeGraphService',
+        error: error.message 
+      });
+      
+      // En cas d'erreur, ajouter quand même mais avec une confiance réduite
+      const reducedConfidenceNode = {
+        ...node,
+        confidence: Math.max(0.1, node.confidence * 0.5),
+        metadata: {
+          ...node.metadata,
+          verification: {
+            verified: false,
+            error: error.message,
+            timestamp: Date.now()
+          }
+        }
+      };
+      
+      return this.addNode(reducedConfidenceNode);
+    }
+  }
+
+  /**
+   * Ajoute un nœud à la quarantaine
+   */
+  private addToQuarantine(
+    node: Omit<KnowledgeNode, 'id' | 'timestamp'>,
+    reason: string,
+    expirationDays: number = 7
+  ): void {
+    const nodeKey = this.generateQuarantineKey(node);
+    const expirationTime = Date.now() + (expirationDays * 24 * 60 * 60 * 1000);
+    
+    this.quarantineQueue.set(nodeKey, {
+      node,
+      expirationTime,
+      reason
+    });
+    
+    this.logger.log(`Nœud placé en quarantaine: ${reason}`, { 
+      context: 'KnowledgeGraphService',
+      content: node.content.substring(0, 50) + '...'
+    });
+    
+    // Émettre un événement de mise en quarantaine
+    this.eventBus.emit({
+      type: RagKagEventType.KNOWLEDGE_QUARANTINE,
+      source: 'KnowledgeGraphService',
+      payload: {
+        node,
+        reason,
+        expirationTime
+      }
+    });
+  }
+
+  /**
+   * Génère une clé unique pour un nœud en quarantaine
+   */
+  private generateQuarantineKey(node: Omit<KnowledgeNode, 'id' | 'timestamp'>): string {
+    return `${node.type}:${node.label}:${this.simpleHash(node.content)}`;
+  }
+
+  /**
+   * Traite la file d'attente de quarantaine
+   */
+  private async processQuarantineQueue(): Promise<void> {
+    const now = Date.now();
+    let processedCount = 0;
+    let expiredCount = 0;
+    
+    for (const [key, entry] of this.quarantineQueue.entries()) {
+      // Supprimer les entrées expirées
+      if (now > entry.expirationTime) {
+        this.quarantineQueue.delete(key);
+        expiredCount++;
+        continue;
+      }
+      
+      // Tenter de vérifier à nouveau
+      if (this.knowledgeVerifier) {
+        try {
+          // Préparer l'affirmation à vérifier
+          const claim = {
+            claim: entry.node.content,
+            source: entry.node.source,
+            domain: entry.node.type,
+            confidence: entry.node.confidence,
+            metadata: entry.node.metadata,
+            temporalContext: entry.node.metadata?.temporalContext
+          };
+          
+          // Vérifier l'affirmation avec le niveau STANDARD (moins strict)
+          const verificationResult = await this.knowledgeVerifier.verifyClaimAdaptive(
+            claim,
+            { forceLevel: 'RELAXED' }
+          );
+          
+          if (verificationResult.isVerified) {
+            // Enrichir les métadonnées avec les résultats de vérification
+            const enrichedNode = {
+              ...entry.node,
+              metadata: {
+                ...entry.node.metadata,
+                verification: {
+                  verified: true,
+                  wasQuarantined: true,
+                  originalReason: entry.reason,
+                  confidence: verificationResult.confidenceScore,
+                  methods: verificationResult.methods,
+                  timestamp: Date.now()
+                }
+              }
+            };
+            
+            // Ajouter le nœud vérifié
+            this.addNode(enrichedNode);
+            
+            // Retirer de la quarantaine
+            this.quarantineQueue.delete(key);
+            processedCount++;
+          }
+        } catch (error) {
+          this.logger.error(`Erreur lors de la re-vérification d'un nœud en quarantaine`, { 
+            context: 'KnowledgeGraphService',
+            error: error.message 
+          });
+        }
+      }
+    }
+    
+    if (processedCount > 0 || expiredCount > 0) {
+      this.logger.log(`Traitement de la quarantaine terminé: ${processedCount} ajoutés, ${expiredCount} expirés`, { 
+        context: 'KnowledgeGraphService'
+      });
+    }
+  }
+
+  /**
+   * Récupère la liste des nœuds en quarantaine
+   */
+  public getQuarantineQueue(): Array<{
+    node: Omit<KnowledgeNode, 'id' | 'timestamp'>;
+    reason: string;
+    expiresIn: number;
+  }> {
+    const now = Date.now();
+    return Array.from(this.quarantineQueue.values()).map(entry => ({
+      node: entry.node,
+      reason: entry.reason,
+      expiresIn: Math.max(0, Math.floor((entry.expirationTime - now) / (1000 * 60 * 60 * 24))) // Jours restants
+    }));
+  }
 
   /**
    * Ajoute un nœud au graphe de connaissances

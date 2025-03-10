@@ -1,69 +1,47 @@
-import { Module, Global } from '@nestjs/common';
-import { Logger, LogLevel } from '@nestjs/common';
-import { LOGGER_TOKEN } from './logger-tokens';
+import { Module, Provider, Logger } from '@nestjs/common';
+import { LOGGER_TOKEN, ILogger } from './logger-tokens';
 
-@Global()
+/**
+ * Implémentation de l'interface ILogger avec la classe Logger de NestJS
+ */
+export class LoggerProvider implements ILogger {
+  private readonly logger = new Logger();
+
+  debug(message: string, context?: Record<string, any>): void {
+    this.logger.debug(message, context ? JSON.stringify(context) : undefined);
+  }
+
+  info(message: string, context?: Record<string, any>): void {
+    this.logger.log(message, context ? JSON.stringify(context) : undefined);
+  }
+
+  log(message: string, context?: Record<string, any>): void {
+    // Assurer que la méthode log existe et est un alias pour info/log
+    this.info(message, context);
+  }
+
+  warn(message: string, context?: Record<string, any>): void {
+    this.logger.warn(message, context ? JSON.stringify(context) : undefined);
+  }
+
+  error(message: string, context?: Record<string, any>): void {
+    this.logger.error(message, context ? JSON.stringify(context) : undefined);
+  }
+}
+
+/**
+ * Provider pour le service de logging
+ */
+const loggerProvider: Provider = {
+  provide: LOGGER_TOKEN,
+  useClass: LoggerProvider,
+};
+
+/**
+ * Module de gestion des logs
+ */
 @Module({
-  providers: [
-    {
-      provide: LOGGER_TOKEN,
-      useFactory: () => {
-        // Récupérer le niveau de log depuis les variables d'environnement
-        // ou utiliser INFO par défaut
-        const logLevelString = process.env.LOG_LEVEL || 'info';
-        
-        // Convertir la chaîne de niveau de log en LogLevel NestJS
-        let logLevel: LogLevel;
-        
-        switch (logLevelString.toLowerCase()) {
-          case 'debug':
-            logLevel = 'debug';
-            break;
-          case 'verbose':
-            logLevel = 'verbose';
-            break;
-          case 'warn':
-            logLevel = 'warn';
-            break;
-          case 'error':
-            logLevel = 'error';
-            break;
-          case 'info':
-          default:
-            logLevel = 'log';
-            break;
-        }
-        
-        // Créer et configurer le logger
-        const logger = new Logger('RAG-KAG');
-        
-        // Dans un contexte réel, on pourrait configurer ici d'autres aspects du logger,
-        // comme la sortie vers un fichier, un service de monitoring, etc.
-        
-        // Retourner notre logger
-        return {
-          debug: (message: string, context?: any) => {
-            if (logLevel === 'debug') {
-              logger.debug(`${message}${context ? ' ' + JSON.stringify(context) : ''}`);
-            }
-          },
-          info: (message: string, context?: any) => {
-            if (['debug', 'verbose', 'log'].includes(logLevel)) {
-              logger.log(`${message}${context ? ' ' + JSON.stringify(context) : ''}`);
-            }
-          },
-          warn: (message: string, context?: any) => {
-            if (['debug', 'verbose', 'log', 'warn'].includes(logLevel)) {
-              logger.warn(`${message}${context ? ' ' + JSON.stringify(context) : ''}`);
-            }
-          },
-          error: (message: string, context?: any) => {
-            logger.error(`${message}${context ? ' ' + JSON.stringify(context) : ''}`);
-          },
-        };
-      }
-    }
-  ],
-  exports: [LOGGER_TOKEN]
+  providers: [loggerProvider],
+  exports: [loggerProvider],
 })
 export class LoggerModule {} 

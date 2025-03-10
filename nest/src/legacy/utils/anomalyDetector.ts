@@ -1,7 +1,7 @@
 import * as fs from 'fs';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PoolOutputs, AnomalyReport, Anomaly, AnomalyType, AnomalySeverity, AgentOutput } from '../../types';
-import { Logger } from '../../utils/logger';
+import { ILogger, LOGGER_TOKEN } from '../../rag-kag/utils/logger-tokens';
 
 /**
  * Service de détection d'anomalies dans les outputs des agents
@@ -10,14 +10,10 @@ import { Logger } from '../../utils/logger';
  */
 @Injectable()
 export class AnomalyDetectorService {
-  private readonly logger: Logger;
+  private readonly logger: ILogger;
   
-  constructor() {
-    this.logger = new Logger({ 
-      level: 2, // INFO
-      colorize: true,
-      timestamp: true 
-    });
+  constructor(@Inject(LOGGER_TOKEN) logger: ILogger) {
+    this.logger = logger;
   }
 
   /**
@@ -625,7 +621,4 @@ export class AnomalyDetectorService {
     if (poolOutputs.sectoriel) count += poolOutputs.sectoriel.length;
     return count;
   }
-}
-
-// Export du service pour l'intégration avec NestJS
-export const anomalyDetector = new AnomalyDetectorService(); 
+} 

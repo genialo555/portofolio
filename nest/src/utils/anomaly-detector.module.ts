@@ -6,6 +6,7 @@ import { AnomalyDetectionService } from './anomaly-detection.service';
  * Module pour la détection d'anomalies
  * Intègre le détecteur d'anomalies dans l'architecture NestJS
  */
+@Global()  // Rendre le module global pour partager ses providers
 @Module({
   providers: [
     AnomalyDetectorService,
