@@ -38,6 +38,7 @@ except ImportError:
     HAS_ACCELERATE = False
 
 from ..config import settings
+from ..utils.memory_manager import get_memory_manager
 
 logger = logging.getLogger("ml_api.models.loader")
 
@@ -54,10 +55,12 @@ class QuantizationType(str, Enum):
 
 class ModelLoader:
     """
-    Classe pour charger et gérer les modèles ML.
+    Gestionnaire de modèles ML.
     
-    Cette classe s'occupe du chargement des modèles, de leur quantification
-    et de la gestion optimale des ressources (CPU/GPU).
+    Cette classe est responsable de:
+    - Charger et décharger des modèles
+    - Gérer les quantifications et les configurations
+    - Optimiser l'utilisation des ressources
     """
     
     def __init__(self, 
@@ -69,28 +72,20 @@ class ModelLoader:
         
         Args:
             model_cache_dir: Répertoire de cache pour les modèles
-            device: Dispositif de calcul ('cpu', 'cuda', 'mps', 'auto')
-            max_gpu_memory: Mémoire GPU maximale à utiliser (en Go)
+            device: Dispositif à utiliser (auto, cpu, cuda:0, etc.)
+            max_gpu_memory: Mémoire GPU maximale à utiliser (en GB)
         """
         self.model_cache_dir = model_cache_dir or str(settings.MODEL_PATH)
-        
-        # Déterminer le device disponible
-        if device == "auto" or device is None:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = device
-            
-        # Configurer la mémoire GPU maximale
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.max_gpu_memory = max_gpu_memory
-        if self.max_gpu_memory is None:
-            if torch.cuda.is_available():
-                # Utiliser 90% de la mémoire GPU disponible par défaut
-                self.max_gpu_memory = int(torch.cuda.get_device_properties(0).total_memory / 1024 / 1024 / 1024 * 0.9)
-            else:
-                self.max_gpu_memory = 0
-                
-        # Dictionnaire pour garder une trace des modèles chargés
+        
+        # Dictionnaire pour suivre les modèles chargés
         self.loaded_models: Dict[str, Dict[str, Any]] = {}
+        
+        # Obtenir le gestionnaire de mémoire virtuelle
+        self.memory_manager = get_memory_manager(cache_dir=self.model_cache_dir)
+        
+        logger.info(f"ModelLoader initialisé avec cache: {self.model_cache_dir}, device: {self.device}")
         
         # Métriques
         self.metrics = {
@@ -101,9 +96,6 @@ class ModelLoader:
             "cache_hits": 0,
         }
         
-        logger.info(f"ModelLoader initialisé avec device={self.device}, max_gpu_memory={self.max_gpu_memory}Go")
-        logger.info(f"Répertoire de cache des modèles: {self.model_cache_dir}")
-        
         # Créer le répertoire de cache s'il n'existe pas
         os.makedirs(self.model_cache_dir, exist_ok=True)
     
@@ -113,58 +105,60 @@ class ModelLoader:
                  quantization: QuantizationType = QuantizationType.NONE,
                  trust_remote_code: bool = False,
                  use_cache: bool = True,
+                 use_virtual_memory: bool = True,
+                 offload_layers: bool = False,
                  **kwargs) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
-        Charge un modèle transformers avec son tokenizer.
+        Charge un modèle et son tokenizer.
         
         Args:
-            model_id: Identifiant du modèle (nom Hugging Face ou chemin local)
-            model_type: Type de modèle ('causal_lm', 'seq2seq_lm', etc.)
+            model_id: Identifiant du modèle à charger
+            model_type: Type de modèle (causal_lm, seq2seq, etc.)
             quantization: Type de quantification à utiliser
-            trust_remote_code: Autoriser l'exécution de code distant
-            use_cache: Utiliser le cache pour les modèles déjà chargés
-            **kwargs: Arguments supplémentaires pour le chargement du modèle
-        
+            trust_remote_code: Si True, autorise l'exécution de code distant
+            use_cache: Si True, utilise le cache pour les modèles déjà chargés
+            use_virtual_memory: Si True, utilise la mémoire virtuelle pour les grands modèles
+            offload_layers: Si True, active l'offloading automatique des couches
+            **kwargs: Arguments supplémentaires pour le chargement
+            
         Returns:
-            Tuple (modèle, tokenizer)
+            Tuple contenant le modèle et le tokenizer
         """
-        cache_key = f"{model_id}_{model_type}_{quantization.value}"
-        
         # Vérifier si le modèle est déjà chargé
+        cache_key = f"{model_id}_{model_type}_{quantization}"
         if use_cache and cache_key in self.loaded_models:
-            logger.info(f"Modèle {model_id} déjà chargé, utilisation depuis le cache")
-            self.metrics["cache_hits"] += 1
-            return (
-                self.loaded_models[cache_key]["model"],
-                self.loaded_models[cache_key]["tokenizer"]
-            )
-        
-        start_time = time.time()
-        self.metrics["model_loads"] += 1
+            logger.info(f"Utilisation du modèle {model_id} depuis le cache")
+            return self.loaded_models[cache_key]["model"], self.loaded_models[cache_key]["tokenizer"]
         
         try:
-            # Configurer la quantification
+            logger.info(f"Chargement du modèle {model_id} (type: {model_type}, quantization: {quantization})")
+            
+            # Utiliser la mémoire virtuelle si demandé
+            if use_virtual_memory:
+                # Obtenir la configuration optimisée pour le modèle
+                vram_config = self.memory_manager.optimize_model_loading(
+                    model_id=model_id, 
+                    quantization=quantization
+                )
+                
+                # Fusionner avec les kwargs existants
+                for key, value in vram_config.items():
+                    if key not in kwargs:
+                        kwargs[key] = value
+                        
+                logger.info(f"Configuration VRAM virtuelle appliquée: {vram_config}")
+            
+            # Configuration de quantification
             quantization_config = self._configure_quantization(quantization)
             
-            logger.info(f"Chargement du modèle {model_id} (type: {model_type}, quantization: {quantization.value})")
-            
-            # Charger le tokenizer en premier
+            # Charger d'abord le tokenizer qui est plus léger
             tokenizer = AutoTokenizer.from_pretrained(
                 model_id,
                 cache_dir=self.model_cache_dir,
-                trust_remote_code=trust_remote_code,
-                padding_side="left",  # Pour le chat
-                **kwargs.get("tokenizer_kwargs", {})
+                trust_remote_code=trust_remote_code
             )
             
-            # Configurer padding token si nécessaire
-            if tokenizer.pad_token is None:
-                if tokenizer.eos_token is not None:
-                    tokenizer.pad_token = tokenizer.eos_token
-                else:
-                    tokenizer.pad_token = tokenizer.eos_token = "</s>"
-            
-            # Charger le modèle avec la quantification appropriée
+            # Charger le modèle en fonction de son type
             if model_type == "causal_lm":
                 model = self._load_causal_lm(
                     model_id=model_id,
@@ -175,26 +169,26 @@ class ModelLoader:
             else:
                 raise ValueError(f"Type de modèle non supporté: {model_type}")
             
-            # Mettre en cache le modèle chargé
+            # Mettre le modèle en mode évaluation
+            model.eval()
+            
+            # Stocker le modèle dans le cache
             self.loaded_models[cache_key] = {
                 "model": model,
                 "tokenizer": tokenizer,
                 "loaded_at": time.time(),
-                "device": model.device,
-                "quantization": quantization.value
+                "type": model_type,
+                "quantization": quantization
             }
             
-            load_time = time.time() - start_time
-            self.metrics["total_load_time"] += load_time
-            self.metrics["successful_loads"] += 1
-            
-            logger.info(f"Modèle {model_id} chargé avec succès en {load_time:.2f}s sur {model.device}")
+            # Offloading automatique des couches si demandé pour les grands modèles
+            if offload_layers and use_virtual_memory:
+                self._configure_layer_offloading(model)
             
             return model, tokenizer
-        
+            
         except Exception as e:
             logger.error(f"Erreur lors du chargement du modèle {model_id}: {str(e)}")
-            self.metrics["failed_loads"] += 1
             raise
     
     def _load_causal_lm(self, 
@@ -303,7 +297,7 @@ class ModelLoader:
         Returns:
             True si le modèle a été déchargé, False sinon
         """
-        cache_key = f"{model_id}_{model_type}_{quantization.value}"
+        cache_key = f"{model_id}_{model_type}_{quantization}"
         
         if cache_key in self.loaded_models:
             # Récupérer les références au modèle et au tokenizer
@@ -343,7 +337,7 @@ class ModelLoader:
         Returns:
             Informations sur le modèle ou None s'il n'est pas chargé
         """
-        cache_key = f"{model_id}_{model_type}_{quantization.value}"
+        cache_key = f"{model_id}_{model_type}_{quantization}"
         
         return self.loaded_models.get(cache_key)
     
@@ -401,6 +395,44 @@ class ModelLoader:
             metrics["gpu_utilization"] = torch.cuda.utilization()
         
         return metrics
+    
+    def _configure_layer_offloading(self, model):
+        """
+        Configure l'offloading automatique des couches pour un modèle.
+        
+        Cette fonction identifie les couches qui peuvent être déchargées et rechargées à la demande.
+        """
+        # Chercher les couches d'attention et MLP qui peuvent être offloadées
+        transformer_layers = []
+        
+        # Parcourir la structure du modèle pour trouver les couches transformers
+        if hasattr(model, "transformer") and hasattr(model.transformer, "layers"):
+            # Structure typique des modèles LLaMA, OPT, etc.
+            transformer_layers = model.transformer.layers
+            prefix = "transformer.layers"
+        elif hasattr(model, "model") and hasattr(model.model, "layers"):
+            # Structure alternative
+            transformer_layers = model.model.layers
+            prefix = "model.layers"
+        
+        if not transformer_layers:
+            logger.warning("Structure de modèle non reconnue pour l'offloading de couches")
+            return
+        
+        # Configuré pour offloader les couches du milieu (gardant les premières et dernières en mémoire)
+        num_layers = len(transformer_layers)
+        layers_to_offload = []
+        
+        # Garder les 2 premières et 2 dernières couches en mémoire pour des performances optimales
+        # Offloader celles du milieu
+        if num_layers > 6:  # Seulement si assez de couches
+            for i in range(2, num_layers - 2):
+                layers_to_offload.append(f"{prefix}.{i}")
+                
+        logger.info(f"Configuration des couches pour offloading: {layers_to_offload}")
+        
+        # Stocker la configuration pour l'offloading
+        model._offloadable_layers = layers_to_offload
 
 
 def create_r1_teacher_model_loader() -> ModelLoader:
@@ -461,6 +493,36 @@ def create_phi4_distilled_model_loader() -> ModelLoader:
         logger.info(f"Modèle Phi-4 distillé chargé avec succès: {model_id}")
     except Exception as e:
         logger.warning(f"Impossible de précharger le modèle Phi-4 distillé: {str(e)}")
+    
+    return loader
+
+
+def create_qwen32b_model_loader() -> ModelLoader:
+    """
+    Crée un chargeur pour le modèle Qwen 32B.
+    
+    Returns:
+        ModelLoader configuré pour le modèle Qwen 32B
+    """
+    # ID du modèle Qwen 32B
+    model_id = "Qwen/Qwen1.5-32B"
+    
+    loader = ModelLoader()
+    
+    # Configurer et précharger le modèle si possible
+    try:
+        model, tokenizer = loader.load_model(
+            model_id=model_id,
+            model_type="causal_lm",
+            quantization=QuantizationType.INT4,  # Quantification 4-bit nécessaire pour ce grand modèle
+            trust_remote_code=True,
+            use_cache=True,
+            # Configuration supplémentaire pour optimiser la mémoire
+            max_gpu_memory="80%",  # Utilise 80% de la mémoire GPU disponible
+        )
+        logger.info(f"Modèle Qwen 32B chargé avec succès: {model_id}")
+    except Exception as e:
+        logger.warning(f"Impossible de précharger le modèle Qwen 32B: {str(e)}")
     
     return loader
 

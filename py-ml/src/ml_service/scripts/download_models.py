@@ -44,6 +44,18 @@ MODELS_TO_DOWNLOAD = {
             "tokenizer": "AutoTokenizer",
             "required": True,
         },
+        "microsoft/Phi-4": {  # Modèle Phi-4
+            "type": "transformers",
+            "class": "AutoModelForCausalLM",
+            "tokenizer": "AutoTokenizer",
+            "required": True,
+        },
+        "Qwen/Qwen1.5-32B": {  # Modèle Qwen 32B
+            "type": "transformers",
+            "class": "AutoModelForCausalLM",
+            "tokenizer": "AutoTokenizer",
+            "required": False,  # Optionnel car nécessite beaucoup de mémoire
+        },
     },
     "image": {
         "stabilityai/stable-diffusion-2-base": {  # Modèle de génération d'images (comme substitut SDXL)
