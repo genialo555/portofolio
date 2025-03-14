@@ -15,6 +15,7 @@ import time
 import gc
 import numpy as np
 from enum import Enum
+import platform
 
 from transformers import (
     AutoModelForCausalLM,
@@ -37,6 +38,16 @@ try:
 except ImportError:
     HAS_ACCELERATE = False
 
+# Vérification pour CoreML Tools sur les appareils Apple Silicon
+HAS_COREML = False
+IS_APPLE_SILICON = platform.processor() == 'arm' and platform.system() == 'Darwin'
+if IS_APPLE_SILICON:
+    try:
+        import coremltools as ct
+        HAS_COREML = True
+    except ImportError:
+        HAS_COREML = False
+
 from ..config import settings
 from ..utils.memory_manager import get_memory_manager
 
@@ -51,6 +62,7 @@ class QuantizationType(str, Enum):
     GGML = "ggml"          # GGML (format de quantification de llama.cpp)
     AWQINT4 = "awq-int4"   # Activation-aware Weight Quantization (4-bit)
     AWQINT8 = "awq-int8"   # Activation-aware Weight Quantization (8-bit)
+    COREML = "coreml"      # CoreML (optimisé pour Apple Silicon)
 
 
 class ModelLoader:
@@ -210,26 +222,53 @@ class ModelLoader:
         """
         model_kwargs = kwargs.get("model_kwargs", {})
         
-        # Configurer pour BitsAndBytes si nécessaire
-        if quantization_config is not None and quantization_config.get("type") in ["int8", "int4"]:
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=quantization_config.get("type") == "int4",
-                load_in_8bit=quantization_config.get("type") == "int8",
-                llm_int8_threshold=6.0,
-                llm_int8_has_fp16_weight=False,
-                bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-            )
-            model_kwargs["quantization_config"] = bnb_config
+        # Vérifier si on utilise Apple Silicon pour des optimisations spécifiques
+        is_apple_silicon = IS_APPLE_SILICON
+        has_coreml = HAS_COREML
+        
+        # Utiliser CoreML pour la quantification sur les appareils Apple Silicon si approprié
+        if is_apple_silicon and has_coreml and quantization_config is not None and quantization_config.get("type") in ["int4", "int8", "coreml"]:
+            logger.info("Utilisation de CoreML pour la quantification sur Apple Silicon")
+            
+            # Configuration pour utiliser CoreML après le chargement
+            memory_manager = get_memory_manager()
+            model_kwargs["post_load_hook"] = memory_manager.apple_coreml_quantization
+            
+            # Utiliser float16 pour le modèle initial
+            model_kwargs["torch_dtype"] = torch.float16
+        # Configurer pour BitsAndBytes si nécessaire (sur les plateformes non-Apple ou si CoreML n'est pas disponible)
+        elif quantization_config is not None and quantization_config.get("type") in ["int8", "int4"]:
+            if not HAS_BITSANDBYTES:
+                logger.warning("La bibliothèque bitsandbytes n'est pas installée. Utilisation du modèle non quantifié.")
+            elif not torch.cuda.is_available() and is_apple_silicon:
+                logger.warning("Quantification bitsandbytes non disponible sur Apple Silicon. Utilisation du modèle en float16.")
+                model_kwargs["torch_dtype"] = torch.float16
+            else:
+                bnb_config = BitsAndBytesConfig(
+                    load_in_4bit=quantization_config.get("type") == "int4",
+                    load_in_8bit=quantization_config.get("type") == "int8",
+                    llm_int8_threshold=6.0,
+                    llm_int8_has_fp16_weight=False,
+                    bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                )
+                model_kwargs["quantization_config"] = bnb_config
         
         # Configurer le device mapping si nécessaire
-        device_map = "auto" if self.device == "cuda" else self.device
+        if is_apple_silicon and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            device_map = "auto"  # Hugging Face gérera l'allocation entre CPU et MPS
+            logger.info("Configuration pour utiliser MPS (Metal Performance Shaders) sur Apple Silicon")
+        else:
+            device_map = "auto" if torch.cuda.is_available() else None
+        
         model_kwargs["device_map"] = kwargs.get("device_map", device_map)
         
         # Configurer le type de données (dtype)
-        if self.device == "cuda":
+        if torch.cuda.is_available():
             torch_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        elif is_apple_silicon and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            torch_dtype = torch.float16  # float16 est bien supporté par le Neural Engine
         else:
             torch_dtype = torch.float32
         
@@ -259,13 +298,17 @@ class ModelLoader:
             return None
             
         if quantization == QuantizationType.INT8:
-            if not HAS_BITSANDBYTES:
+            if IS_APPLE_SILICON and HAS_COREML:
+                return {"type": "coreml", "bits": 8}
+            elif not HAS_BITSANDBYTES:
                 logger.warning("La bibliothèque bitsandbytes n'est pas installée. La quantification INT8 ne sera pas appliquée.")
                 return None
             return {"type": "int8"}
             
         elif quantization == QuantizationType.INT4:
-            if not HAS_BITSANDBYTES:
+            if IS_APPLE_SILICON and HAS_COREML:
+                return {"type": "coreml", "bits": 4}
+            elif not HAS_BITSANDBYTES:
                 logger.warning("La bibliothèque bitsandbytes n'est pas installée. La quantification INT4 ne sera pas appliquée.")
                 return None
             return {"type": "int4"}
@@ -282,6 +325,12 @@ class ModelLoader:
         elif quantization == QuantizationType.AWQINT8:
             return {"type": "awq", "bits": 8}
             
+        elif quantization == QuantizationType.COREML:
+            if not (IS_APPLE_SILICON and HAS_COREML):
+                logger.warning("CoreML n'est disponible que sur Apple Silicon avec coremltools installé.")
+                return None
+            return {"type": "coreml", "bits": 4}
+        
         return None
     
     def unload_model(self, model_id: str, model_type: str = "causal_lm",
