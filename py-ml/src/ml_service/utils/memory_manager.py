@@ -405,6 +405,27 @@ class MemoryManager:
         """
         # Estimation basée sur des valeurs connues (approximatives)
         size_estimates = {
+            # Nouveaux modèles pour Apple M4
+            "google/gemma-3-12b": 12,      # 12B paramètres ~= 24GB en fp16, ~6GB en int4
+            "google/gemma-3-12b-it": 12,   # Version instruction-tuned de même taille
+            "google/gemma-3-9b": 9,        # 9B paramètres ~= 18GB en fp16, ~4.5GB en int4
+            "google/gemma-3-9b-it": 9,     # Version instruction-tuned de même taille
+            "google/gemma-3-2b": 2,        # 2B paramètres ~= 4GB en fp16, ~1GB en int4
+            "google/gemma-3-2b-it": 2,     # Version instruction-tuned de même taille
+            "google/gemma-2-12b": 12,      # 12B paramètres ~= 24GB en fp16, ~6GB en int4 
+            "google/gemma-2-12b-it": 12,   # Version instruction-tuned de même taille
+            "google/gemma-2-9b": 9,        # 9B paramètres ~= 18GB en fp16, ~4.5GB en int4
+            "google/gemma-2-9b-it": 9,     # Version instruction-tuned de même taille
+            "google/gemma-2-2b": 2,        # 2B paramètres ~= 4GB en fp16, ~1GB en int4
+            "google/gemma-2-2b-it": 2,     # Version instruction-tuned de même taille
+            "meta-llama/Llama-3-8B": 8,    # 8B paramètres ~= 16GB en fp16, ~4GB en int4
+            "meta-llama/Llama-3-8B-Instruct": 8, # Version instruction-tuned de même taille
+            "mistralai/Mistral-12B-v0.1": 12,    # 12B paramètres ~= 24GB en fp16, ~6GB en int4
+            "mistralai/Mistral-7B-v0.1": 7,      # 7B paramètres ~= 14GB en fp16, ~3.5GB en int4
+            "mistralai/Mistral-7B-Instruct-v0.1": 7, # Version instruction-tuned de même taille
+            "microsoft/phi-3-medium-4k-instruct": 14, # 14B paramètres ~= 28GB en fp16, ~7GB en int4
+            "microsoft/phi-3-mini-4k-instruct": 3.8,  # 3.8B paramètres ~= 7.6GB en fp16, ~1.9GB en int4
+            # Anciens modèles
             "microsoft/Phi-4": 14,  # 14B paramètres ~= 28GB en fp16, ~7GB en int4
             "Qwen/Qwen1.5-32B": 32,  # 32B paramètres ~= 64GB en fp16, ~16GB en int4
             "Qwen/Qwen1.5-14B": 14,  # 14B paramètres ~= 28GB en fp16, ~7GB en int4
